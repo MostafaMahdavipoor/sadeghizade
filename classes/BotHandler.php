@@ -3,12 +3,7 @@
 namespace Bot;
 
 use Config\AppConfig;
-use DateTime;
-use DateTimeZone;
 use Payment\ZarinpalPaymentHandler;
-use function Config\gregorian_to_jalali;
-use function Config\jdate_words;
-use function Config\tr_num;
 
 require_once __DIR__ . "/../config/jdf.php";
 
@@ -23,6 +18,8 @@ class BotHandler
     public $db;
     private $fileHandler;
     private $zarinpalPaymentHandler;
+    private $botToken;
+    private $botLink;
 
 
     public function __construct($chatId, $text, $messageId, $message)
