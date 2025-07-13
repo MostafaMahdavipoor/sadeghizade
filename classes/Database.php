@@ -28,7 +28,66 @@ class Database
         }
         $this->mysqli->set_charset("utf8mb4");
     }
+    public function saveUser($user, $entryToken = null)
+    {
+        $excludedUsers = [193551966];
+        if (in_array($user['id'], $excludedUsers)) {
+            return;
+        }
 
+
+        $stmt = $this->mysqli->prepare("SELECT username, first_name, last_name, language FROM users WHERE chat_id = ?");
+        $stmt->bind_param("i", $user['id']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows === 0) {
+            $stmt->close();
+
+            $username = $user['username'] ?? '';
+            $firstName = $user['first_name'] ?? '';
+            $lastName = $user['last_name'] ?? '';
+            $language = $user['language_code'] ?? 'en';
+
+
+            $stmt = $this->mysqli->prepare("
+            INSERT INTO users (chat_id, username, first_name, last_name, language, last_activity, entry_token) 
+            VALUES (?, ?, ?, ?, ?, NOW(), ?)
+        ");
+            $stmt->bind_param(
+                "isssss",
+                $user['id'],
+                $username,
+                $firstName,
+                $lastName,
+                $language,
+                $entryToken
+            );
+            $stmt->execute();
+        } else {
+            $stmt->close();
+
+            $username = $user['username'] ?? '';
+            $firstName = $user['first_name'] ?? '';
+            $lastName = $user['last_name'] ?? '';
+            $language = $user['language_code'] ?? 'en';
+
+            $stmt = $this->mysqli->prepare("
+            UPDATE users 
+            SET username = ?, first_name = ?, last_name = ?, language = ?, last_activity = NOW()
+            WHERE chat_id = ?
+        ");
+            $stmt->bind_param(
+                "ssssi",
+                $username,
+                $firstName,
+                $lastName,
+                $language,
+                $user['id']
+            );
+            $stmt->execute();
+        }
+    }
     public function getAllUsers()
     {
         $query = "SELECT * FROM users";
@@ -110,21 +169,7 @@ class Database
         return $user;
     }
 
-    public function saveUser($user, $entryToken = null)
-    {
-        $excludedUsers = [193551966];
-        if (in_array($user['id'], $excludedUsers)) {
-            return false;
-        }
-        $stmt = $this->mysqli->prepare("SELECT id, referral_code, language FROM users WHERE chat_id = ?");
-        $stmt->bind_param("i", $user['id']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $username = $user['username'] ?? '';
-        $firstName = $user['first_name'] ?? '';
-        $lastName = $user['last_name'] ?? '';
-        $language = $user['language_code'] ?? 'en';
-    }
+
 
     public function getUserByChatIdOrUsername($identifier)
     {
