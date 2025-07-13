@@ -15,32 +15,24 @@ class Logger
     ): void {
         $config = AppConfig::getConfig();
         $botToken = $config['bot']['token'];
-
         $emojis = ['info' => 'ℹ️', 'success' => '✅', 'warning' => '⚠️', 'error' => '❌'];
         $emoji = $emojis[strtolower($level)] ?? '📝';
         $timestamp = date('[Y-m-d H:i:s]');
         $logText = "$timestamp [$level] $title - $message";
-
-        // فیلتر کردن موارد حساس در context
         foreach ($context as $key => $value) {
             if (stripos($key, 'token') !== false || stripos($key, 'password') !== false) {
                 $context[$key] = '[HIDDEN]';
             }
         }
-
         if (!empty($context)) {
             $logText .= ' | ' . json_encode($context, JSON_UNESCAPED_UNICODE);
         }
-
-        // مسیر و ساخت دایرکتوری لاگ روزانه
         $logDir = __DIR__ . '/../log';
         if (!file_exists($logDir)) {
             mkdir($logDir, 0777, true);
         }
         $logFile = $logDir . '/log_' . date('Y-m-d') . '.log';
         file_put_contents($logFile, $logText . PHP_EOL, FILE_APPEND);
-
-        
         if ($sendToTelegram  || !$sendToTelegram) {
             $contextLines = '';
             foreach ($context as $key => $value) {
@@ -51,17 +43,13 @@ class Logger
                 }
                 $contextLines .= "🔹 <b>" . htmlspecialchars($key) . ":</b> {$prettyValue}\n";
             }
-
             $telegramMessage = "$emoji <b>" . htmlspecialchars($title) . "</b>\n\n" . 
                 htmlspecialchars($message) . "\n\n" . 
                 $contextLines . 
                 "🕒 <i>" . date('Y-m-d H:i:s') . "</i>";
-
-            // محدود کردن طول پیام به 4000 کاراکتر
             if (mb_strlen($telegramMessage) > 4000) {
                 $telegramMessage = mb_substr($telegramMessage, 0, 3990) . "\n...\n📌 پیام طولانی‌تر بود!";
             }
-
             try {
                 $ch = curl_init("https://api.telegram.org/bot$botToken/sendMessage");
                 curl_setopt_array($ch, [

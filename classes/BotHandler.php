@@ -7,10 +7,8 @@ use Payment\ZarinpalPaymentHandler;
 
 require_once __DIR__ . "/../config/jdf.php";
 
-
 class BotHandler
 {
-
     private $chatId;
     private $text;
     private $messageId;
@@ -20,7 +18,6 @@ class BotHandler
     private $zarinpalPaymentHandler;
     private $botToken;
     private $botLink;
-
 
     public function __construct($chatId, $text, $messageId, $message)
     {
@@ -33,8 +30,6 @@ class BotHandler
         $config = AppConfig::getConfig();
         $this->botToken = $config['bot']['token'];
         $this->botLink = $config['bot']['bot_link'];
-
-
         $this->zarinpalPaymentHandler = new ZarinpalPaymentHandler();
     }
 
@@ -49,31 +44,24 @@ class BotHandler
     public function handleSuccessfulPayment($update): void
     {
         $userLanguage = $this->db->getUserLanguage($this->chatId);
-
         if (isset($update['message']['successful_payment'])) {
             $chatId = $update['message']['chat']['id'];
             $payload = $update['message']['successful_payment']['invoice_payload'];
             $successfulPayment = $update['message']['successful_payment'];
-
-
         }
     }
-
 
     public function handlePreCheckoutQuery($update): void
     {
         if (isset($update['pre_checkout_query'])) {
             $query_id = $update['pre_checkout_query']['id'];
-
             file_put_contents('log.txt', date('Y-m-d H:i:s') . " - Received pre_checkout_query: " . print_r($update, true) . "\n", FILE_APPEND);
-
             $url = "https://api.telegram.org/bot" . $this->botToken . "/answerPreCheckoutQuery";
             $post_fields = [
                 'pre_checkout_query_id' => $query_id,
                 'ok' => true,
                 'error_message' => ""
             ];
-
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -85,10 +73,6 @@ class BotHandler
         }
     }
 
-
-
-
-
     public function handleCallbackQuery($callbackQuery): void
     {
         $callbackData = $callbackQuery["data"] ?? null;
@@ -97,15 +81,12 @@ class BotHandler
         $messageId = $callbackQuery["message"]["message_id"] ?? null;
         $currentKeyboard = $callbackQuery["message"]["reply_markup"]["inline_keyboard"] ?? [];
         $userLanguage = $this->db->getUserLanguage($this->chatId);
-
         $user = $this->message['from'] ?? $this->callbackQuery['from'] ?? null;
-
         if ($user !== null) {
             $this->db->saveUser($user);
         } else {
             error_log("❌ Cannot save user: 'from' is missing in both message and callbackQuery.");
         }
-
         if (!$callbackData || !$chatId || !$callbackQueryId || !$messageId) {
             error_log("Callback query missing required data.");
             return;
@@ -120,30 +101,24 @@ class BotHandler
             error_log("BotHandler::handleRequest: 'from' field missing for non-start message. Update type might not be a user message.");
         }
         $state = $this->fileHandler->getState($this->chatId);
-
-        }
+    }
 
     public function sendRequest($method, $data)
     {
         $url = "https://api.telegram.org/bot" . $this->botToken . "/$method";
-
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_errno($ch) ? curl_error($ch) : null;
         curl_close($ch);
-
         $this->logTelegramRequest($method, $data, $response, $httpCode, $curlError);
-
         if ($curlError) {
             return false;
         }
-
         if ($httpCode >= 200 && $httpCode < 300) {
             return json_decode($response, true);
         } else {
@@ -163,8 +138,6 @@ class BotHandler
             'http_code' => $httpCode,
             'curl_error' => $curlError
         ];
-
         $logMessage = json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
     }
 }

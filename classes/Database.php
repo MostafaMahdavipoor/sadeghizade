@@ -9,48 +9,41 @@ use Config\AppConfig;
 class Database
 {
     private $mysqli;
+    private $botLink;
 
     public function __construct()
     {
         $config = AppConfig::getConfig();
         $this->botLink = $config['bot']['bot_link'];
         $dbConfig = $config['database'];
-
-
         $this->mysqli = new mysqli(
             $dbConfig['host'],
             $dbConfig['username'],
             $dbConfig['password'],
             $dbConfig['database']
         );
-
         if ($this->mysqli->connect_errno) {
             error_log("❌ Database Connection Failed: " . $this->mysqli->connect_error);
             exit();
         }
-
         $this->mysqli->set_charset("utf8mb4");
     }
+
     public function getAllUsers()
     {
         $query = "SELECT * FROM users";
-
         $stmt = $this->mysqli->prepare($query);
-
         if (!$stmt) {
             error_log("❌ Failed to prepare statement in getAllUsers: " . $this->mysqli->error);
             return [];
         }
-
         if (!$stmt->execute()) {
             error_log("❌ Failed to execute statement in getAllUsers: " . $stmt->error);
             $stmt->close();
             return [];
         }
-
         $result = $stmt->get_result();
         $users = $result->fetch_all(MYSQLI_ASSOC);
-
         $stmt->close();
         return $users;
     }
@@ -71,7 +64,6 @@ class Database
         $stmt->bind_param("i", $chatId);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
-
         return $result['username'] ?? 'Unknown';
     }
 
@@ -81,6 +73,7 @@ class Database
         $stmt->bind_param("si", $language, $chatId);
         return $stmt->execute();
     }
+
     public function getUserByUsername($username)
     {
         $stmt = $this->mysqli->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
@@ -95,9 +88,9 @@ class Database
         $stmt->bind_param('s', $chatId);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
-
         return $result['language'] ?? 'fa';
     }
+
     public function getUserInfo($chatId)
     {
         $stmt = $this->mysqli->prepare("SELECT `username`, `first_name`, `last_name` FROM `users` WHERE `chat_id` = ?");
@@ -105,22 +98,17 @@ class Database
             error_log("Failed to prepare statement: " . $this->mysqli->error);
             return null;
         }
-
         $stmt->bind_param("i", $chatId);
         $stmt->execute();
         $result = $stmt->get_result();
-
         $user = $result->fetch_assoc();
         $stmt->close();
-
         if (!$user) {
             error_log("User not found for chat_id: {$chatId}");
             return null;
         }
-
         return $user;
     }
-
 
     public function saveUser($user, $entryToken = null)
     {
@@ -128,19 +116,15 @@ class Database
         if (in_array($user['id'], $excludedUsers)) {
             return false;
         }
-
         $stmt = $this->mysqli->prepare("SELECT id, referral_code, language FROM users WHERE chat_id = ?");
         $stmt->bind_param("i", $user['id']);
         $stmt->execute();
         $result = $stmt->get_result();
-
         $username = $user['username'] ?? '';
         $firstName = $user['first_name'] ?? '';
         $lastName = $user['last_name'] ?? '';
         $language = $user['language_code'] ?? 'en';
-
     }
-
 
     public function getUserByChatIdOrUsername($identifier)
     {
@@ -152,12 +136,10 @@ class Database
             $stmt = $this->mysqli->prepare("SELECT * FROM users WHERE username = ?");
             $stmt->bind_param("s", $username);
         }
-
         $stmt->execute();
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
         $stmt->close();
-
         return $user;
     }
 
@@ -167,30 +149,25 @@ class Database
         $stmt->bind_param("i", $chatId);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
-
         return trim(($result['first_name'] ?? '') . ' ' . ($result['last_name'] ?? ''));
     }
+
     public function getUsersBatch($limit = 20, $offset = 0)
     {
         $query = "SELECT id, chat_id, username, first_name, last_name, join_date, last_activity, status, language, is_admin, entry_token 
               FROM users 
               ORDER BY id ASC 
               LIMIT ? OFFSET ?";
-
         $stmt = $this->mysqli->prepare($query);
-
         if (!$stmt) {
             error_log("❌ Prepare failed: " . $this->mysqli->error);
             return [];
         }
-
         $stmt->bind_param("ii", $limit, $offset);
-
         if (!$stmt->execute()) {
             error_log("❌ Execute failed: " . $stmt->error);
             return [];
         }
-
         $result = $stmt->get_result();
         return $result->fetch_all(MYSQLI_ASSOC);
     }
@@ -199,26 +176,20 @@ class Database
     {
         $query = "UPDATE users SET status = ? WHERE chat_id = ?";
         $stmt = $this->mysqli->prepare($query);
-
         if (!$stmt) {
             error_log("Database Error: " . $this->mysqli->error);
             return false;
         }
-
         $stmt->bind_param("si", $status, $chatId);
-
         if (!$stmt->execute()) {
             error_log("Error updating status for User ID: $chatId");
             $stmt->close();
             return false;
         }
-
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
-
         return $affectedRows > 0;
     }
-
 
     public function isAdmin($chatId)
     {
@@ -228,7 +199,6 @@ class Database
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
         $stmt->close();
-
         return $user && $user['is_admin'] == 1;
     }
 
@@ -239,7 +209,5 @@ class Database
         $stmt->execute();
         return $stmt->get_result()->fetch_assoc();
     }
-
 }
-
 ?>

@@ -2,26 +2,23 @@
 
 namespace Bot;
 
-
 class FileHandler
 {
     private string $filePath;
 
-
     public function __construct()
     {
-
         $this->filePath = __DIR__ . '/../parent_ids.json';
-
     }
+
     public function saveState($chatId, $state)
     {
         $data = $this->getAllData();
         $data[$chatId]['state'] = $state;
         $this->saveAllData($data);
     }
- 
-     public function getState($chatId)
+
+    public function getState($chatId)
     {
         $data = $this->getAllData();
         return $data[$chatId]['state'] ?? NULL;
@@ -29,7 +26,6 @@ class FileHandler
 
     private function getAllData()
     {
-
         $content = file_get_contents($this->filePath);
         $data = json_decode($content, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
@@ -51,6 +47,7 @@ class FileHandler
         }
         fclose($file);
     }
+
     public function addMessageId($chatId, $messageId)
     {
         $data = $this->getAllData();
