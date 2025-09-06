@@ -13,7 +13,7 @@ class Logger
         array $context = [],
         bool $sendToTelegram = false
     ): void {
-        $config = AppConfig::getConfig();
+        $config = AppConfig::get();
         $botToken = $config['bot']['token'];
         $emojis = ['info' => 'ℹ️', 'success' => '✅', 'warning' => '⚠️', 'error' => '❌'];
         $emoji = $emojis[strtolower($level)] ?? '📝';

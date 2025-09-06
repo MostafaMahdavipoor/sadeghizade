@@ -1,9 +1,9 @@
 <?php
-require_once __DIR__ . '/config/AppConfig.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Config\AppConfig;
 
-$config = AppConfig::getConfig();
+$config = AppConfig::get();
 $db = $config['database'];
 
 $mysqli = new mysqli($db['host'], $db['username'], $db['password'], $db['database']);

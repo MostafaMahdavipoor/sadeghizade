@@ -5,8 +5,6 @@ namespace Bot;
 use Config\AppConfig;
 use Payment\ZarinpalPaymentHandler;
 
-require_once __DIR__ . "/../config/jdf.php";
-
 class BotHandler
 {
     private $chatId;
@@ -27,10 +25,9 @@ class BotHandler
         $this->message = $message;
         $this->db = new Database();
         $this->fileHandler = new FileHandler();
-        $config = AppConfig::getConfig();
+        $config = AppConfig::get();
         $this->botToken = $config['bot']['token'];
         $this->botLink = $config['bot']['bot_link'];
-        $this->zarinpalPaymentHandler = new ZarinpalPaymentHandler();
     }
 
     public function deleteMessageWithDelay(): void

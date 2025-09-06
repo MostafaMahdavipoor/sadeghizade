@@ -1,48 +1,50 @@
 <?php
+require_once __DIR__ . '/../vendor/autoload.php';
 
-require __DIR__ . '/vendor/autoload.php';
-
-use Config\AppConfig;
 use Bot\BotHandler;
-use Bot\InlineQueryHandler;
-use Payment\ZarinpalPaymentHandler;
-
-$config = AppConfig::getConfig();
-
 
 $update = json_decode(file_get_contents('php://input'), true);
-
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+error_log("Update: " . print_r($update ,true));
+if (!$update) {
+    exit('No update received');
 }
 
-if (isset($update['inline_query'])) {
-    $inlineQuery = $update['inline_query'];
-    $query = $inlineQuery['query'];
+switch (true) {
+    case isset($update['inline_query']):
+    
+        $inlineQueryHandler->handleInlineQuery($update['inline_query']);
+        break;
 
-    $inlineQueryHandler = new InlineQueryHandler();
-    $inlineQueryHandler->handleInlineQuery($inlineQuery);
-} elseif (isset($update['message'])) {
-    $message = $update['message'];
-    $chatId = $message['chat']['id'];
-    $text = $message['text'] ?? '';
-    $messageId = $message['message_id'] ?? null;
+    case isset($update['message']):
+        $message   = $update['message'];
+        $chatId    = $message['chat']['id'] ?? null;
+        $text      = $message['text'] ?? '';
+        $messageId = $message['message_id'] ?? null;
 
-    $bot = new BotHandler($chatId, $text, $messageId, $message);
+        $bot = new BotHandler($chatId, $text, $messageId, $message);
 
-    if (isset($message['successful_payment'])) {
-        $bot->handleSuccessfulPayment($update);
-    } else {
-        $bot->handleRequest();
-    }
-} elseif (isset($update['callback_query'])) {
-    $callbackQuery = $update['callback_query'];
-    $chatId = $callbackQuery['message']['chat']['id'];
-    $messageId = $callbackQuery['message']['message_id'] ?? null;
-    $bot = new BotHandler($chatId, '', $messageId, $callbackQuery['message']);
-    $bot->handleCallbackQuery($callbackQuery);
-}  elseif (isset($update['pre_checkout_query'])) {
-    $bot = new BotHandler(null, null, null, null);
-    $bot->handlePreCheckoutQuery($update);
+        if (isset($message['successful_payment'])) {
+            $bot->handleSuccessfulPayment($update);
+        } else {
+            $bot->handleRequest();
+        }
+        break;
+
+    case isset($update['callback_query']):
+        $callbackQuery = $update['callback_query'];
+        $chatId    = $callbackQuery['message']['chat']['id'] ?? null;
+        $messageId = $callbackQuery['message']['message_id'] ?? null;
+
+        $bot = new BotHandler($chatId, '', $messageId, $callbackQuery['message']);
+        $bot->handleCallbackQuery($callbackQuery);
+        break;
+
+    case isset($update['pre_checkout_query']):
+       
+        $bot->handlePreCheckoutQuery($update);
+        break;
+
+    default:
+        error_log("⚠️ Unknown update type: " . json_encode($update));
+        break;
 }

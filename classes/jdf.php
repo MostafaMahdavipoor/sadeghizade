@@ -5,7 +5,6 @@ namespace Config;
 class jdf
 {
 
-    /*	F	*/
     static function jdate($format, $timestamp = '', $none = '', $time_zone = 'Asia/Tehran', $tr_num = 'fa')
     {
 
