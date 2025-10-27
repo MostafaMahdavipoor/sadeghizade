@@ -4,9 +4,7 @@ namespace Bot;
 
 class FileHandler
 {
-    /**
-     * لیست فایل‌ها
-     */
+
     private array $files = [
         1 => __DIR__ . '/../parent_ids.json',
         2 => __DIR__ . '/../states.json',

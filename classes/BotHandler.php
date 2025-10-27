@@ -7,6 +7,8 @@ use Payment\ZarinpalPaymentHandler;
 
 class BotHandler
 {
+    use HandleRequest;
+    use Functions;
     private $chatId;
     private $text;
     private $messageId;
@@ -90,15 +92,6 @@ class BotHandler
         }
     }
 
-    public function handleRequest(): void
-    {
-        if (isset($this->message["from"])) {
-            $this->db->saveUser($this->message["from"]);
-        } else {
-            error_log("BotHandler::handleRequest: 'from' field missing for non-start message. Update type might not be a user message.");
-        }
-        $state = $this->fileHandler->getState($this->chatId);
-    }
 
     public function sendRequest($method, $data)
     {
