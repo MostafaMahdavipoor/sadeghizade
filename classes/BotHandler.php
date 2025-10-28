@@ -94,7 +94,7 @@ class BotHandler
 
         // ** مدیریت حالت‌ها (States) **
         // --- اصلاح شده: رفع باگ $stateData و استفاده از FileHandler جدید ---
-        $state = $this->fileHandler->getState($this->chatId); 
+        $state = $this->fileHandler->getState($this->chatId);
         $data = $this->fileHandler->getData($this->chatId);
         // --- پایان اصلاح ---
 
@@ -108,7 +108,7 @@ class BotHandler
             $data['major'] = substr($callbackData, 10); // 'tajrobi' or 'riazi'
             $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
             $this->fileHandler->saveState($this->chatId, 'awaiting_grade'); // اصلاح شد
-            $this->askGrade(); //
+            $this->askGrade($messageId); //
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
@@ -121,7 +121,7 @@ class BotHandler
             $data['grade'] = substr($callbackData, 10); // '10', '11', '12'
             $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_time'); // اصلاح شد
-            $this->askReportTime(); //
+            $this->askReportTime($messageId); //
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
@@ -144,7 +144,15 @@ class BotHandler
             );
 
             $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: پاک کردن حالت
-            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "ثبت نام شما با موفقیت انجام شد."]);
+            $this->sendRequest(
+                "editMessageText",
+                [
+                    "chat_id" => $this->chatId,
+                    "message_id" =>  $messageId,
+                    "text" => "ثبت نام شما با موفقیت انجام شد."
+                ]
+            );
+            
             $this->showMainMenu($this->db->isAdmin($this->chatId)); //
 
             // اطلاع به ادمین‌ها

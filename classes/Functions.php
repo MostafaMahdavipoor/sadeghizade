@@ -48,34 +48,36 @@ trait Functions
 
     //   -------------------------------- توابع ثبت نام
 
-    public function askMajor(): void
+    public function askMajor($messaheId): void
     {
         $buttons = [
             [['text' => 'تجربی', 'callback_data' => 'set_major_tajrobi']],
             [['text' => 'ریاضی', 'callback_data' => 'set_major_riazi']],
         ];
-        $this->sendRequest("sendMessage", [
+        $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
+             "message_id" =>  $messaheId,
             "text" => "رشته تحصیلی خود را انتخاب کنید:",
             "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ]);
     }
 
-    public function askGrade(): void
+    public function askGrade($messaheId): void
     {
         $buttons = [
             [['text' => 'دهم', 'callback_data' => 'set_grade_10']],
             [['text' => 'یازدهم', 'callback_data' => 'set_grade_11']],
             [['text' => 'دوازدهم', 'callback_data' => 'set_grade_12']],
         ];
-        $this->sendRequest("sendMessage", [
+        $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
+            "message_id" =>  $messaheId,
             "text" => "مقطع تحصیلی خود را انتخاب کنید:",
             "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ]);
     }
 
-    public function askReportTime(): void
+    public function askReportTime($messaheId): void
     {
         $buttons = [
             [['text' => 'ساعت ۱۹', 'callback_data' => 'set_time_19:00:00']],
@@ -85,8 +87,9 @@ trait Functions
             [['text' => 'ساعت ۲۳', 'callback_data' => 'set_time_23:00:00']],
             [['text' => 'ساعت ۰۰', 'callback_data' => 'set_time_00:00:00']],
         ];
-        $this->sendRequest("sendMessage", [
+        $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
+            "message_id" =>  $messaheId,
             "text" => "ساعتی که می‌خواهید گزارش فعالیت خود را ثبت کنید، انتخاب نمایید:",
             "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ]);
@@ -97,7 +100,6 @@ trait Functions
         $studentInfo = $this->db->getUserInfo($chatId);
         $username = $studentInfo['username'] ? "@" . $studentInfo['username'] : "ندارد";
 
-        // --- اصلاح شده: استفاده از HTML ---
         $text = "✅ <b>ثبت نام دانش آموز جدید</b>\n\n" .
             "<b>نام:</b> " . htmlspecialchars($data['first_name'] . ' ' . $data['last_name']) . "\n" .
             "<b>نام کاربری:</b> " . $username . "\n" .

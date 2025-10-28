@@ -15,53 +15,77 @@ trait HandleRequest
             $token = substr($this->text, 7);
         }
 
-        // ذخیره کاربر در جدول 'users'
         $this->db->saveUser($this->message["from"], $token);
         $isAdmin = $this->db->isAdmin($this->chatId);
-        
-        // ** مدیریت حالت‌ها (States) **
-        // --- اصلاح شده: استفاده از متدهای جدید FileHandler ---
+
         $state = $this->fileHandler->getState($this->chatId);
         $data = $this->fileHandler->getData($this->chatId);
-        // --- پایان اصلاح ---
 
-        // مدیریت پیام عکس (برای دلیل درس نخواندن)
+
         if (isset($this->message['photo']) && $state === 'awaiting_no_study_reason') {
-            $photoId = $this->message['photo'][count($this->message['photo']) - 1]['file_id']; // بهترین کیفیت
+            $photoId = $this->message['photo'][count($this->message['photo']) - 1]['file_id'];
             $report = $this->db->getTodaysReport($this->chatId);
-            
+
             if ($report) {
                 $reasonText = $this->message['caption'] ?? 'تصویر ارسال شد';
                 $this->db->updateReportReason($report['report_id'], $reasonText, $photoId);
-                
+
                 $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "دلیل شما (به همراه عکس) ثبت شد."]);
                 $this->fileHandler->saveState($this->chatId, null); // پاک کردن حالت
                 $this->notifyAdminsOfNoStudy($report['report_id']); // اطلاع به ادمین
             }
             return;
         }
-        
-        // اگر متن خالی است (مثلا عکس بدون کپشن)، خارج شو
+
         if (empty($this->text)) {
             return;
         }
-        
-        // مدیریت حالت‌های متنی
+
+        if ($token === 'register') {
+            $this->db->createStudent($this->chatId);
+
+            $this->fileHandler->saveState($this->chatId, 'awaiting_first_name');
+            $this->fileHandler->saveData($this->chatId, []);
+
+            $res = $this->sendRequest("sendMessage", [
+                "chat_id" => $this->chatId,
+                "text" => "به سامانه ثبت‌نام مشاوره کنکور خوش آمدید.\n\n" .
+                    "برای شروع فرآیند ثبت‌نام، لطفاً نام خود را وارد کنید:",
+            ]);
+            $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? null);
+            return;
+        }
+
+        if ($this->text == "/start") {
+            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: خروج از هر حالتی
+            $this->showMainMenu($isAdmin);
+            return;
+        }
+
         if ($state) {
+            $this->deleteMessageWithDelay();
+            $messaheId = $this->fileHandler->getMessageId($this->chatId);
+
             switch ($state) {
-                // --- مراحل ثبت نام ---
                 case 'awaiting_first_name':
                     $data['first_name'] = $this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
                     $this->fileHandler->saveState($this->chatId, 'awaiting_last_name'); // اصلاح شد
-                    $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفاً نام خانوادگی خود را وارد کنید:"]);
+                    $this->sendRequest(
+                        "editMessageText",
+                        [
+                            "chat_id" => $this->chatId,
+                            "message_id" =>  $messaheId,
+                            "text" => "لطفاً نام خانوادگی خود را وارد کنید:"
+                        ]
+                    );
                     break;
-                
+
                 case 'awaiting_last_name':
                     $data['last_name'] = $this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
                     $this->fileHandler->saveState($this->chatId, 'awaiting_major'); // اصلاح شد
-                    $this->askMajor(); // تابع کمکی از Functions.php
+                    $this->askMajor($messaheId); // تابع کمکی از Functions.php
                     break;
 
                 // --- مراحل گزارش دهی ---
@@ -74,7 +98,7 @@ trait HandleRequest
                         $this->notifyAdminsOfNoStudy($report['report_id']); // اطلاع به ادمین
                     }
                     break;
-                    
+
                 case 'awaiting_lesson_name':
                     $data['current_entry'] = ['lesson_name' => $this->text];
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
@@ -88,22 +112,22 @@ trait HandleRequest
                     $this->fileHandler->saveState($this->chatId, 'awaiting_study_time'); // اصلاح شد
                     $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "زمان مطالعه (به دقیقه) را وارد کنید:"]);
                     break;
-                    
+
                 case 'awaiting_study_time':
                     if (!is_numeric($this->text)) {
-                         $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (زمان مطالعه به دقیقه):"]);
-                         return; // حالت را تغییر نده
+                        $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (زمان مطالعه به دقیقه):"]);
+                        return; // حالت را تغییر نده
                     }
                     $data['current_entry']['study_time'] = (int)$this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
                     $this->fileHandler->saveState($this->chatId, 'awaiting_test_count'); // اصلاح شد
                     $this->askTestCount(); // تابع کمکی برای ارسال دکمه "تست نزدم"
                     break;
-                    
+
                 case 'awaiting_test_count':
                     if (!is_numeric($this->text)) {
-                         $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (تعداد تست):"]);
-                         return; // حالت را تغییر نده
+                        $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (تعداد تست):"]);
+                        return; // حالت را تغییر نده
                     }
                     $data['current_entry']['test_count'] = (int)$this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
@@ -113,32 +137,5 @@ trait HandleRequest
             }
             return; // چون در یک حالت خاص بوده، ادامه نده
         }
-
-
-        // --- مدیریت دستورات اصلی ---
-        
-        if ($token === 'register') {
-            // ایجاد ردیف دانش آموز در جدول 'students'
-            $this->db->createStudent($this->chatId);
-            
-            // تنظیم حالت برای دریافت نام
-            $this->fileHandler->saveState($this->chatId, 'awaiting_first_name'); // اصلاح شد
-            $this->fileHandler->saveData($this->chatId, []); // اصلاح شد: پاک کردن دیتای قبلی
-
-            $this->sendRequest("sendMessage", [
-                "chat_id" => $this->chatId,
-                "text" => "به سامانه ثبت‌نام مشاوره کنکور خوش آمدید.\n\n" .
-                          "برای شروع فرآیند ثبت‌نام، لطفاً نام خود را وارد کنید:",
-            ]);
-            return;
-        }
-
-        if ($this->text == "/start") {
-            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: خروج از هر حالتی
-            $this->showMainMenu($isAdmin);
-            return;
-        }
     }
-    
-    
 }
