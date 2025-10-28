@@ -88,4 +88,12 @@ class AppConfig
             die("Application configuration is invalid. Please check the logs.");
         }
     }
+    public static function getConfig(): array
+    {
+        if (empty(self::$config)) {
+            self::load();
+        }
+        return self::$config;
+    }
+
 }

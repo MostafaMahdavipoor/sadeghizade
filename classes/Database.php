@@ -71,7 +71,7 @@ class Database
         $this->query($sql, $params);
     }
 
-    //    -------------------------------- users
+    //   -------------------------------- users
     public function getAllUsers(): array
     {
         $stmt = $this->query("SELECT * FROM users");
@@ -104,6 +104,33 @@ class Database
         $stmt = $this->query("SELECT * FROM users WHERE chat_id = ?", [$chatId]);
         return $stmt ? $stmt->fetch() : false;
     }
+
+    /**
+     * تابع بازنویسی شده با PDO
+     */
+    public function getUserByChatId($chatId)
+    {
+        // کامای اضافی بعد از is_admin در کوئری شما حذف شد
+        $query = "SELECT `id`, `chat_id`, `username`, `first_name`, `last_name`, 
+                         `join_date`, `last_activity`, `status`, `language`, 
+                         `is_admin` 
+                  FROM `users` 
+                  WHERE `chat_id` = ? 
+                  LIMIT 1";
+
+        // استفاده از متد query موجود در کلاس که PDO است
+        $stmt = $this->query($query, [$chatId]);
+
+        if (!$stmt) {
+             error_log("❌ Query failed for getUserByChatId: " . $chatId);
+             return null;
+        }
+
+        $user = $stmt->fetch();
+
+        return $user ?: null;
+    }
+
     public function getUserByChatIdOrUsername($identifier): array|false
     {
         if (is_numeric($identifier)) {
@@ -143,7 +170,7 @@ class Database
         return $stmt ? $stmt->fetch() : false;
     }
 
-    //    -------------------------------- admins
+    //   -------------------------------- admins
     public function isAdmin($chatId): bool
     {
         $stmt = $this->query("SELECT is_admin FROM users WHERE chat_id = ?", [$chatId]);
@@ -155,5 +182,5 @@ class Database
         $stmt = $this->query("SELECT id, chat_id, username FROM users WHERE is_admin = ?", [1]);
         return $stmt ? $stmt->fetchAll() : [];
     }
-    //    -------------------------------- 
+    //   -------------------------------- 
 }
