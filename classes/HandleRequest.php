@@ -42,15 +42,31 @@ trait HandleRequest
         }
 
         if ($token === 'register') {
+
+            $student = $this->db->getStudent($this->chatId);
+
+            if ($student && $student['status'] === 'active') {
+                $res =  $this->sendRequest("sendMessage", [
+                    "chat_id" => $this->chatId,
+                    "text" => "شما قبلاً ثبت‌نام کرده‌اید و دانش‌آموز فعال هستید. نیازی به ثبت‌نام مجدد نیست.",
+                ]);
+                sleep(2);
+
+                $this->showMainMenu($isAdmin, $res['result']['message_id'] ?? null);
+                return;
+            }
             $this->db->createStudent($this->chatId);
 
             $this->fileHandler->saveState($this->chatId, 'awaiting_first_name');
             $this->fileHandler->saveData($this->chatId, []);
-
+            $buttons = [
+                [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
+            ];
             $res = $this->sendRequest("sendMessage", [
                 "chat_id" => $this->chatId,
-                "text" => "به سامانه ثبت‌نام مشاوره کنکور خوش آمدید.\n\n" .
-                    "برای شروع فرآیند ثبت‌نام، لطفاً نام خود را وارد کنید:",
+                "text" => "🎓 به سامانه ثبت‌نام مشاوره کنکور خوش آمدید!\n\n" .
+                    "برای شروع، لطفاً نام  خود را وارد کنید(فقط نام):",
+                "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
             $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? null);
             return;
@@ -65,7 +81,10 @@ trait HandleRequest
         if ($state) {
             $this->deleteMessageWithDelay();
             $messaheId = $this->fileHandler->getMessageId($this->chatId);
-
+             $buttons = [
+                [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
+            ];
+            
             switch ($state) {
                 case 'awaiting_first_name':
                     $data['first_name'] = $this->text;
@@ -76,7 +95,8 @@ trait HandleRequest
                         [
                             "chat_id" => $this->chatId,
                             "message_id" =>  $messaheId,
-                            "text" => "لطفاً نام خانوادگی خود را وارد کنید:"
+                            "text" => "لطفاً نام خانوادگی خود را وارد کنید:",
+                            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
                         ]
                     );
                     break;

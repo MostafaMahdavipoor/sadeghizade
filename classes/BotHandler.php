@@ -152,7 +152,7 @@ class BotHandler
                     "text" => "ثبت نام شما با موفقیت انجام شد."
                 ]
             );
-            
+
             $this->showMainMenu($this->db->isAdmin($this->chatId)); //
 
             // اطلاع به ادمین‌ها
@@ -161,8 +161,11 @@ class BotHandler
             return;
         }
 
-        // --- مدیریت گزارش دهی (بخش اصلاح شده) ---
+        if ($callbackData === 'cancll') {
+            $this->showMainMenu($this->db->isAdmin($this->chatId , $this->messageId));
 
+            return;
+        }
         if ($callbackData === 'start_daily_report') {
             $report = $this->db->getTodaysReport($this->chatId);
             if (!$report) {

@@ -7,7 +7,7 @@ use Exception;
 trait Functions
 {
 
-    public function showMainMenu($isAdmin = false): void
+    public function showMainMenu($isAdmin = false, $messaheId = null): void
     {
 
         $text = "✅ به ربات مشاوره کنکور خوش آمدید.\n\nلطفا یکی از گزینه‌های زیر را انتخاب کنید:";
@@ -27,14 +27,24 @@ trait Functions
                 ['text' => '👮‍♂️ پنل ادمین', 'callback_data' => 'admin_panel']
             ];
         }
-
-        $this->sendRequest("sendMessage", [
-            "chat_id"      => $this->chatId,
-            "text"         => $text,
-            "reply_markup" => json_encode([
-                "inline_keyboard" => $buttons
-            ]),
-        ]);
+        if ($messaheId) {
+            $this->sendRequest("editMessageText", [
+                "chat_id"      => $this->chatId,
+                "message_id" =>  $messaheId,
+                "text"         => $text,
+                "reply_markup" => json_encode([
+                    "inline_keyboard" => $buttons
+                ]),
+            ]);
+        } else {
+            $this->sendRequest("sendMessage", [
+                "chat_id"      => $this->chatId,
+                "text"         => $text,
+                "reply_markup" => json_encode([
+                    "inline_keyboard" => $buttons
+                ]),
+            ]);
+        }
     }
 
     public function answerCallbackQuery(string $callbackQueryId, string $text = '', bool $showAlert = false): void
@@ -53,10 +63,11 @@ trait Functions
         $buttons = [
             [['text' => 'تجربی', 'callback_data' => 'set_major_tajrobi']],
             [['text' => 'ریاضی', 'callback_data' => 'set_major_riazi']],
+            [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
         ];
         $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
-             "message_id" =>  $messaheId,
+            "message_id" =>  $messaheId,
             "text" => "رشته تحصیلی خود را انتخاب کنید:",
             "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ]);
@@ -68,6 +79,7 @@ trait Functions
             [['text' => 'دهم', 'callback_data' => 'set_grade_10']],
             [['text' => 'یازدهم', 'callback_data' => 'set_grade_11']],
             [['text' => 'دوازدهم', 'callback_data' => 'set_grade_12']],
+              [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
         ];
         $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
@@ -86,6 +98,7 @@ trait Functions
             [['text' => 'ساعت ۲۲', 'callback_data' => 'set_time_22:00:00']],
             [['text' => 'ساعت ۲۳', 'callback_data' => 'set_time_23:00:00']],
             [['text' => 'ساعت ۰۰', 'callback_data' => 'set_time_00:00:00']],
+              [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
         ];
         $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
