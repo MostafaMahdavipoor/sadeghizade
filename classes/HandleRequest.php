@@ -56,24 +56,22 @@ trait HandleRequest
                 return;
             }
             $this->db->createStudent($this->chatId);
-
-            $this->fileHandler->saveState($this->chatId, 'awaiting_first_name');
-            $this->fileHandler->saveData($this->chatId, []);
-            $buttons = [
-                [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
-            ];
-            $res = $this->sendRequest("sendMessage", [
-                "chat_id" => $this->chatId,
-                "text" => "🎓 به سامانه ثبت‌نام مشاوره کنکور خوش آمدید!\n\n" .
-                    "برای شروع، لطفاً نام  خود را وارد کنید(فقط نام):",
-                "reply_markup" => json_encode(['inline_keyboard' => $buttons])
+            $this->fileHandler->saveState($this->chatId, 'in_wizard');
+            $this->fileHandler->saveData($this->chatId, [
+                'wizard' => 'registration',
+                'step' => -1, 
+                'form_data' => []
             ]);
-            $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? null);
+            $this->fileHandler->saveMessageId($this->chatId, null);
+            $this->processWizard(null, false, null);
             return;
         }
 
         if ($this->text == "/start") {
-            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: خروج از هر حالتی
+            $this->fileHandler->saveState($this->chatId, null);
+            $this->fileHandler->saveData($this->chatId, []); 
+            $this->fileHandler->saveMessageId($this->chatId, null);
+            
             $this->showMainMenu($isAdmin);
             return;
         }
@@ -81,33 +79,14 @@ trait HandleRequest
         if ($state) {
             $this->deleteMessageWithDelay();
             $messaheId = $this->fileHandler->getMessageId($this->chatId);
-             $buttons = [
-                [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
-            ];
+
+            if ($state === 'in_wizard') {
+                $this->processWizard($this->text, false, $messaheId);
+                return; 
+            }
             
             switch ($state) {
-                case 'awaiting_first_name':
-                    $data['first_name'] = $this->text;
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_last_name'); // اصلاح شد
-                    $this->sendRequest(
-                        "editMessageText",
-                        [
-                            "chat_id" => $this->chatId,
-                            "message_id" =>  $messaheId,
-                            "text" => "لطفاً نام خانوادگی خود را وارد کنید:",
-                            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
-                        ]
-                    );
-                    break;
-
-                case 'awaiting_last_name':
-                    $data['last_name'] = $this->text;
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_major'); // اصلاح شد
-                    $this->askMajor($messaheId); // تابع کمکی از Functions.php
-                    break;
-
+                
                 // --- مراحل گزارش دهی ---
                 case 'awaiting_no_study_reason':
                     $report = $this->db->getTodaysReport($this->chatId);

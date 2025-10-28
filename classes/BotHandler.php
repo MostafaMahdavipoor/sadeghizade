@@ -60,6 +60,7 @@ class BotHandler
                 'ok' => true,
                 'error_message' => ""
             ];
+            
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -98,74 +99,30 @@ class BotHandler
         $data = $this->fileHandler->getData($this->chatId);
         // --- پایان اصلاح ---
 
-
-        // --- مدیریت ثبت نام ---
-        if (str_starts_with($callbackData, 'set_major_')) {
-            if ($state !== 'awaiting_major') {
-                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است. لطفا از /start register مجدد شروع کنید.", true);
+        if (str_starts_with($callbackData, 'wizard_')) {
+            $data = $this->fileHandler->getData($this->chatId);
+            // چک می‌کنیم که واقعا در ویزارد ثبت نام باشیم
+            if (isset($data['wizard']) && $data['wizard'] === 'registration') {
+                // $messageId از خود کالبک می‌آید و همان آیدی پیام ویزارد است
+                $this->processWizard($callbackData, true, $messageId);
+                $this->answerCallbackQuery($callbackQueryId);
                 return;
             }
-            $data['major'] = substr($callbackData, 10); // 'tajrobi' or 'riazi'
-            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-            $this->fileHandler->saveState($this->chatId, 'awaiting_grade'); // اصلاح شد
-            $this->askGrade($messageId); //
-            $this->answerCallbackQuery($callbackQueryId);
-            return;
-        }
-
-        if (str_starts_with($callbackData, 'set_grade_')) {
-            if ($state !== 'awaiting_grade') {
-                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است.", true);
-                return;
-            }
-            $data['grade'] = substr($callbackData, 10); // '10', '11', '12'
-            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-            $this->fileHandler->saveState($this->chatId, 'awaiting_report_time'); // اصلاح شد
-            $this->askReportTime($messageId); //
-            $this->answerCallbackQuery($callbackQueryId);
-            return;
-        }
-
-        if (str_starts_with($callbackData, 'set_time_')) {
-            if ($state !== 'awaiting_report_time') {
-                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است.", true);
-                return;
-            }
-            $data['time'] = substr($callbackData, 9); // '19:00:00', ...
-
-            // ** پایان ثبت نام **
-            $this->db->finalizeStudentRegistration(
-                $this->chatId,
-                $data['first_name'] ?? 'ناشناس',
-                $data['last_name'] ?? '',
-                $data['major'],
-                $data['grade'],
-                $data['time']
-            );
-
-            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: پاک کردن حالت
-            $this->sendRequest(
-                "editMessageText",
-                [
-                    "chat_id" => $this->chatId,
-                    "message_id" =>  $messageId,
-                    "text" => "ثبت نام شما با موفقیت انجام شد."
-                ]
-            );
-
-            $this->showMainMenu($this->db->isAdmin($this->chatId)); //
-
-            // اطلاع به ادمین‌ها
-            $this->notifyAdminsOfRegistration($this->chatId, $data); //
-            $this->answerCallbackQuery($callbackQueryId, "ثبت نام تکمیل شد.", false);
-            return;
+            // (می‌توانید برای ویزاردهای دیگر هم else if بگذارید)
         }
 
         if ($callbackData === 'cancell') {
-            $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
+            $data = $this->fileHandler->getData($this->chatId);
+            if (isset($data['wizard'])) {
+                $this->processWizard('wizard_cancel', true, $messageId);
+                $this->answerCallbackQuery($callbackQueryId, "ثبت نام لغو شد.");
+                return;
+            }
 
+            $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
             return;
         }
+
         if ($callbackData === 'start_daily_report') {
             $report = $this->db->getTodaysReport($this->chatId);
             if (!$report) {

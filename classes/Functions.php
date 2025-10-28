@@ -15,7 +15,7 @@ trait Functions
 
         $buttons = [
             [
-                ['text' => '✍️ ثبت گزارش روزانه', 'callback_data' => 'daily_report']
+                ['text' => '✍️ ثبت گزارش روزانه', 'callback_data' => 'start_daily_report']
             ],
             [
                 ['text' => '📅 برنامه مطالعاتی', 'callback_data' => 'view_study_plan'],
@@ -56,58 +56,7 @@ trait Functions
         ]);
     }
 
-    //   -------------------------------- توابع ثبت نام
-
-    public function askMajor($messaheId): void
-    {
-        $buttons = [
-            [['text' => 'تجربی', 'callback_data' => 'set_major_tajrobi']],
-            [['text' => 'ریاضی', 'callback_data' => 'set_major_riazi']],
-            [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
-        ];
-        $this->sendRequest("editMessageText", [
-            "chat_id" => $this->chatId,
-            "message_id" =>  $messaheId,
-            "text" => "رشته تحصیلی خود را انتخاب کنید:",
-            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
-        ]);
-    }
-
-    public function askGrade($messaheId): void
-    {
-        $buttons = [
-            [['text' => 'دهم', 'callback_data' => 'set_grade_10']],
-            [['text' => 'یازدهم', 'callback_data' => 'set_grade_11']],
-            [['text' => 'دوازدهم', 'callback_data' => 'set_grade_12']],
-              [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
-        ];
-        $this->sendRequest("editMessageText", [
-            "chat_id" => $this->chatId,
-            "message_id" =>  $messaheId,
-            "text" => "مقطع تحصیلی خود را انتخاب کنید:",
-            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
-        ]);
-    }
-
-    public function askReportTime($messaheId): void
-    {
-        $buttons = [
-            [['text' => 'ساعت ۱۹', 'callback_data' => 'set_time_19:00:00']],
-            [['text' => 'ساعت ۲۰', 'callback_data' => 'set_time_20:00:00']],
-            [['text' => 'ساعت ۲۱', 'callback_data' => 'set_time_21:00:00']],
-            [['text' => 'ساعت ۲۲', 'callback_data' => 'set_time_22:00:00']],
-            [['text' => 'ساعت ۲۳', 'callback_data' => 'set_time_23:00:00']],
-            [['text' => 'ساعت ۰۰', 'callback_data' => 'set_time_00:00:00']],
-              [['text' => '❌ انصراف', 'callback_data' => 'cancell']],
-        ];
-        $this->sendRequest("editMessageText", [
-            "chat_id" => $this->chatId,
-            "message_id" =>  $messaheId,
-            "text" => "ساعتی که می‌خواهید گزارش فعالیت خود را ثبت کنید، انتخاب نمایید:",
-            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
-        ]);
-    }
-
+   
     public function notifyAdminsOfRegistration(int $chatId, array $data): void
     {
         $studentInfo = $this->db->getUserInfo($chatId);
@@ -270,5 +219,238 @@ trait Functions
                 ]);
             }
         }
+    }
+
+    private function getRegistrationWizardConfig(): array
+    {
+        return [
+            // مرحله 0: نام
+            [
+                'key' => 'first_name',
+                'question' => '🎓 به سامانه ثبت‌نام خوش آمدید!
+        لطفاً نام خود را وارد کنید:',
+                'type' => 'text',
+                'error_message' => 'خطا: لطفاً نام خود را به صورت متن وارد کنید.'
+            ],
+            // مرحله 1: نام خانوادگی
+            [
+                'key' => 'last_name',
+                'question' => 'لطفاً نام خانوادگی خود را وارد کنید:',
+                'type' => 'text',
+                'error_message' => 'خطا: لطفاً نام خانوادگی خود را به صورت متن وارد کنید.'
+            ],
+            // مرحله 2: رشته
+            [
+                'key' => 'major',
+                'question' => 'رشته تحصیلی خود را انتخاب کنید:',
+                'type' => 'buttons',
+                'options' => [
+                    [['text' => 'تجربی', 'callback_data' => 'wizard_set_tajrobi']],
+                    [['text' => 'ریاضی', 'callback_data' => 'wizard_set_riazi']],
+                ],
+                'value_map' => [ // callback_data را به مقداری که باید ذخیره شود مپ می‌کند
+                    'wizard_set_tajrobi' => 'tajrobi',
+                    'wizard_set_riazi' => 'riazi'
+                ]
+            ],
+            // مرحله 3: پایه
+            [
+                'key' => 'grade',
+                'question' => 'مقطع تحصیلی خود را انتخاب کنید:',
+                'type' => 'buttons',
+                'options' => [
+                    [['text' => 'دهم', 'callback_data' => 'wizard_set_10']],
+                    [['text' => 'یازدهم', 'callback_data' => 'wizard_set_11']],
+                    [['text' => 'دوازدهم', 'callback_data' => 'wizard_set_12']],
+                ],
+                'value_map' => [
+                    'wizard_set_10' => '10',
+                    'wizard_set_11' => '11',
+                    'wizard_set_12' => '12'
+                ]
+            ],
+            // مرحله 4: ساعت گزارش
+            [
+                'key' => 'time',
+                'question' => 'ساعتی که می‌خواهید گزارش فعالیت خود را ثبت کنید، انتخاب نمایید:',
+                'type' => 'buttons',
+                'options' => [
+                    [['text' => 'ساعت ۱۹', 'callback_data' => 'wizard_set_19:00:00']],
+                    [['text' => 'ساعت ۲۰', 'callback_data' => 'wizard_set_20:00:00']],
+                    [['text' => 'ساعت ۲۱', 'callback_data' => 'wizard_set_21:00:00']],
+                    [['text' => 'ساعت ۲۲', 'callback_data' => 'wizard_set_22:00:00']],
+                    [['text' => 'ساعت ۲۳', 'callback_data' => 'wizard_set_23:00:00']],
+                    [['text' => 'ساعت ۰۰', 'callback_data' => 'wizard_set_00:00:00']],
+                ],
+                'value_map' => [
+                    'wizard_set_19:00:00' => '19:00:00',
+                    'wizard_set_20:00:00' => '20:00:00',
+                    'wizard_set_21:00:00' => '21:00:00',
+                    'wizard_set_22:00:00' => '22:00:00',
+                    'wizard_set_23:00:00' => '23:00:00',
+                    'wizard_set_00:00:00' => '00:00:00'
+                ]
+            ]
+        ];
+    }
+
+    public function processWizard(mixed $inputValue, bool $isCallback, ?int $messageId): void
+    {
+        $data = $this->fileHandler->getData($this->chatId);
+        $config = $this->getRegistrationWizardConfig(); // در آینده می‌توانید نام ویزارد را داینامیک کنید
+
+        // اگر ویزاردی فعال نیست، خارج شو
+        if (!isset($data['wizard']) || $data['wizard'] !== 'registration') {
+            return;
+        }
+
+        $currentStep = (int)$data['step']; // مرحله‌ای که کاربر *در آن قرار دارد*
+        $formData = $data['form_data'] ?? [];
+
+        // --- 1. پردازش ورودی ---
+        $isValid = true;
+        $valueToSave = null;
+
+        if ($inputValue === 'wizard_cancel') {
+            $this->fileHandler->saveData($this->chatId, []); // پاک کردن داده
+            $this->fileHandler->saveState($this->chatId, null); // پاک کردن حالت
+            $this->fileHandler->saveMessageId($this->chatId, null); // پاک کردن آیدی پیام
+            $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
+            return;
+        }
+
+        if ($inputValue === 'wizard_back') {
+            if ($currentStep > 0) {
+                $currentStep--; // برگرد به مرحله قبل
+            }
+        }
+        // اگر ورودی از مرحله قبلی آمده است (نه اولین نمایش یا بازگشت)
+        elseif ($currentStep >= 0 && $inputValue !== null) {
+            $stepConfig = $config[$currentStep]; // کانفیگ مرحله‌ای که *تمام شد*
+
+            if ($isCallback) {
+                // ورودی دکمه است
+                if ($stepConfig['type'] === 'buttons' && isset($stepConfig['value_map'][$inputValue])) {
+                    $valueToSave = $stepConfig['value_map'][$inputValue];
+                } else {
+                    $isValid = false; // دکمه نامعتبر
+                }
+            } else {
+                // ورودی متن است
+                if ($stepConfig['type'] === 'text') {
+                    $valueToSave = $inputValue;
+                } else {
+                    $isValid = false; // منتظر دکمه بودیم، متن دریافت شد
+                }
+            }
+
+            if ($isValid) {
+                $formData[$stepConfig['key']] = $valueToSave;
+                $currentStep++; // برو به مرحله بعد
+            } else {
+                // ورودی نامعتبر بود، همان مرحله را دوباره نمایش بده با پیام خطا
+                if ($stepConfig['type'] === 'text' && isset($stepConfig['error_message'])) {
+                    // (بهتر است پیام خطا در یک پیام جدید ارسال شود تا کاربر گیج نشود)
+                    $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => $stepConfig['error_message']]);
+                }
+                // (برای دکمه‌ها خطایی ارسال نمی‌کنیم چون کاربر نمی‌تواند اشتباه کلیک کند)
+            }
+        }
+        // اگر اولین بار است (inputValue == null)
+        elseif ($inputValue === null && $currentStep === -1) {
+            $currentStep = 0; // برو به مرحله اول
+        }
+
+
+        // --- 2. ذخیره حالت جدید ---
+        $data['step'] = $currentStep;
+        $data['form_data'] = $formData;
+        $this->fileHandler->saveData($this->chatId, $data);
+
+        // --- 3. نمایش مرحله بعدی یا اتمام ---
+
+        // اگر مراحل تمام شده‌اند
+        if ($currentStep >= count($config)) {
+            $this->finishRegistration($formData, $messageId);
+        } else {
+            // نمایش مرحله فعلی
+            $this->askWizardStep($config[$currentStep], $data, $messageId);
+        }
+    }
+
+    private function askWizardStep(array $stepConfig, array $data, ?int $messageId): void
+    {
+        $text = $stepConfig['question'];
+        $buttons = [];
+
+        if ($stepConfig['type'] === 'buttons') {
+            $buttons = $stepConfig['options'];
+        }
+
+        // اضافه کردن دکمه‌های "بازگشت" و "انصراف"
+        $navigationButtons = [];
+        if ($data['step'] > 0) { // دکمه بازگشت برای مرحله اول (step 0) نمایش داده نشود
+            $navigationButtons[] = ['text' => '🔙 بازگشت', 'callback_data' => 'wizard_back'];
+        }
+        $navigationButtons[] = ['text' => '❌ انصراف', 'callback_data' => 'wizard_cancel'];
+        $buttons[] = $navigationButtons;
+
+        $params = [
+            "chat_id"      => $this->chatId,
+            "text"         => $text,
+            "reply_markup" => json_encode(["inline_keyboard" => $buttons]),
+        ];
+
+        // اگر $messageId وجود داشت (یعنی یا مرحله اول بود یا مرحله قبلی دکمه‌ای بود)، پیام را ویرایش کن
+        if ($messageId) {
+            $params["message_id"] = $messageId;
+            $this->sendRequest("editMessageText", $params);
+        } else {
+            // این فقط برای مرحله اول (که با /start register شروع شده) رخ می‌دهد
+            $res = $this->sendRequest("sendMessage", $params);
+            // آیدی پیام اصلی ویزارد را ذخیره می‌کنیم تا در مراحل بعدی آن را ویرایش کنیم
+            if (isset($res['result']['message_id'])) {
+                $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id']);
+            }
+        }
+    }
+
+
+    private function finishRegistration(array $formData, ?int $messageId): void
+    {
+        // 1. ذخیره در دیتابیس
+        $this->db->finalizeStudentRegistration(
+            $this->chatId,
+            $formData['first_name'] ?? 'ناشناس',
+            $formData['last_name'] ?? '',
+            $formData['major'],
+            $formData['grade'],
+            $formData['time']
+        );
+
+        // 2. پاک کردن حالت ویزارد
+        $this->fileHandler->saveState($this->chatId, null);
+        $this->fileHandler->saveData($this->chatId, []); // پاک کردن داده‌های ویزارد
+        $this->fileHandler->saveMessageId($this->chatId, null); // پاک کردن آیدی پیام
+
+        // 3. نمایش پیام موفقیت (ویرایش پیام قبلی)
+        $text = "✅ ثبت نام شما با موفقیت انجام شد.";
+        if ($messageId) {
+            $this->sendRequest("editMessageText", [
+                "chat_id" => $this->chatId,
+                "message_id" =>  $messageId,
+                "text" => $text,
+                "reply_markup" => null // دکمه‌ها را پاک کن
+            ]);
+        } else {
+            // (اگر messageId به هر دلیلی نرسید، پیام جدید بفرست)
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => $text]);
+        }
+
+        // 4. نمایش منوی اصلی
+        $this->showMainMenu($this->db->isAdmin($this->chatId));
+
+        // 5. اطلاع به ادمین‌ها
+        $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
 }
