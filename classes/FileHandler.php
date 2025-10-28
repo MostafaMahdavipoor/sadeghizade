@@ -4,104 +4,141 @@ namespace Bot;
 
 class FileHandler
 {
-
-    private array $files = [
-        1 => __DIR__ . '/../parent_ids.json',
-        2 => __DIR__ . '/../states.json',
-        3 => __DIR__ . '/../messages.json',
-    ];
-
-    private int $defaultFileKey = 1;
-
-   
-    private function getFile($fileKey = null): string
+    private string $storageFile = __DIR__ . '/../parent_ids.json';
+    private function ensureFileExists(): void
     {
-        $fileKey = $fileKey ?? $this->defaultFileKey;
-
-        if (!isset($this->files[$fileKey])) {
-            throw new \InvalidArgumentException("❌ فایل با شماره {$fileKey} تعریف نشده.");
+        if (!file_exists($this->storageFile)) {
+            file_put_contents($this->storageFile, json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         }
-
-        $file = $this->files[$fileKey];
-
-        if (!file_exists($file)) {
-            file_put_contents($file, json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        }
-
-        return $file;
     }
 
-    public function saveState(int|string $chatId, mixed $state, $fileKey = null): void
+    //   -------------------------------- State Management
+    
+    /**
+     * ذخیره حالت (state) فعلی کاربر
+     */
+    public function saveState(int|string $chatId, mixed $state): void
     {
-        $data = $this->getAllData($fileKey);
-        $data[$chatId]['state'] = $state;
-        $this->saveAllData($data, $fileKey);
+        $allData = $this->getAllData();
+        $allData[$chatId]['state'] = $state;
+        $this->saveAllData($allData);
     }
 
-    public function getState(int|string $chatId, $fileKey = null): mixed
+    /**
+     * دریافت حالت (state) فعلی کاربر
+     */
+    public function getState(int|string $chatId): mixed
     {
-        $data = $this->getAllData($fileKey);
-        return $data[$chatId]['state'] ?? null;
+        $allData = $this->getAllData();
+        return $allData[$chatId]['state'] ?? null;
     }
 
-    public function addMessageId(int|string $chatId, int|string $messageId, $fileKey = null): void
+    //   -------------------------------- Data Management (داده‌های موقت)
+
+    /**
+     * ذخیره داده‌های موقت (مثلاً اطلاعات فرم ثبت نام)
+     */
+    public function saveData(int|string $chatId, mixed $data): void
     {
-        $data = $this->getAllData($fileKey);
-        $data[$chatId]['message_ids'][] = $messageId;
-        $this->saveAllData($data, $fileKey);
+        $allData = $this->getAllData();
+        $allData[$chatId]['data'] = $data;
+        $this->saveAllData($allData);
     }
 
-    public function getMessageIds(int|string $chatId, $fileKey = null): array
+    /**
+     * دریافت داده‌های موقت کاربر
+     */
+    public function getData(int|string $chatId): array
     {
-        $data = $this->getAllData($fileKey);
-        return $data[$chatId]['message_ids'] ?? [];
+        $allData = $this->getAllData();
+        return $allData[$chatId]['data'] ?? [];
+    }
+    
+    //   -------------------------------- Message ID Management
+
+    /**
+     * افزودن یک آیدی پیام به لیست پیام‌های کاربر
+     */
+    public function addMessageId(int|string $chatId, int|string $messageId): void
+    {
+        $allData = $this->getAllData();
+        $allData[$chatId]['message_ids'][] = $messageId;
+        $this->saveAllData($allData);
     }
 
-    public function clearMessageIds(int|string $chatId, $fileKey = null): void
+    /**
+     * دریافت لیست آیدی پیام‌های کاربر
+     */
+    public function getMessageIds(int|string $chatId): array
     {
-        $data = $this->getAllData($fileKey);
-        unset($data[$chatId]['message_ids']);
-        $this->saveAllData($data, $fileKey);
+        $allData = $this->getAllData();
+        return $allData[$chatId]['message_ids'] ?? [];
     }
 
-    public function saveMessageId(int|string $chatId, int|string $messageId, $fileKey = null): void
+    /**
+     * پاک کردن لیست آیدی پیام‌های کاربر
+     */
+    public function clearMessageIds(int|string $chatId): void
     {
-        $data = $this->getAllData($fileKey);
-        $data[$chatId]['message_id'] = $messageId;
-        $this->saveAllData($data, $fileKey);
+        $allData = $this->getAllData();
+        unset($allData[$chatId]['message_ids']);
+        $this->saveAllData($allData);
     }
 
-    public function getMessageId(int|string $chatId, $fileKey = null): int|string|null
+    /**
+     * ذخیره یک آیدی پیام خاص (مثلاً پیام اصلی منو)
+     */
+    public function saveMessageId(int|string $chatId, int|string $messageId): void
     {
-        $data = $this->getAllData($fileKey);
-        return $data[$chatId]['message_id'] ?? null;
+        $allData = $this->getAllData();
+        $allData[$chatId]['message_id'] = $messageId;
+        $this->saveAllData($allData);
     }
 
-    private function getAllData($fileKey = null): array
+    /**
+     * دریافت آیدی پیام خاص کاربر
+     */
+    public function getMessageId(int|string $chatId): int|string|null
     {
-        $file = $this->getFile($fileKey);
-        $content = file_get_contents($file);
+        $allData = $this->getAllData();
+        return $allData[$chatId]['message_id'] ?? null;
+    }
+
+    //   -------------------------------- Core I/O (Private)
+
+    /**
+     * خواندن تمام محتوای فایل ذخیره‌سازی
+     */
+    private function getAllData(): array
+    {
+        $this->ensureFileExists(); // اطمینان از وجود فایل قبل از خواندن
+        
+        $content = file_get_contents($this->storageFile);
         $data = json_decode($content, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("JSON decode error in {$file}: " . json_last_error_msg());
+            error_log("JSON decode error in {$this->storageFile}: " . json_last_error_msg());
             return [];
         }
 
         return $data ?? [];
     }
 
-    private function saveAllData(array $data, $fileKey = null): void
+    /**
+     * نوشتن تمام محتوا در فایل ذخیره‌سازی (با قفل انحصاری)
+     */
+    private function saveAllData(array $data): void
     {
-        $file = $this->getFile($fileKey);
+        $this->ensureFileExists(); // اطمینان از وجود فایل قبل از نوشتن
+
         $jsonData = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
-        $fp = fopen($file, 'c+');
+        $fp = fopen($this->storageFile, 'c+');
         if ($fp && flock($fp, LOCK_EX)) {
-            ftruncate($fp, 0);
-            fwrite($fp, $jsonData);
-            fflush($fp);
-            flock($fp, LOCK_UN);
+            ftruncate($fp, 0);      // پاک کردن محتوای فایل
+            fwrite($fp, $jsonData); // نوشتن داده‌های جدید
+            fflush($fp);            // اطمینان از نوشته شدن داده‌ها
+            flock($fp, LOCK_UN);    // آزاد کردن قفل
             fclose($fp);
         }
     }

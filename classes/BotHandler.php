@@ -26,7 +26,7 @@ class BotHandler
         $this->messageId = $messageId;
         $this->message = $message;
         $this->db = new Database();
-        $this->fileHandler = new FileHandler();
+        $this->fileHandler = new FileHandler(); // از فایل هندلر جدید (تک فایلی) استفاده می‌کند
         $config = AppConfig::get();
         $this->botToken = $config['bot']['token'];
         $this->botLink = $config['bot']['bot_link'];
@@ -42,7 +42,6 @@ class BotHandler
 
     public function handleSuccessfulPayment($update): void
     {
-        $userLanguage = $this->db->getUserLanguage($this->chatId);
         if (isset($update['message']['successful_payment'])) {
             $chatId = $update['message']['chat']['id'];
             $payload = $update['message']['successful_payment']['invoice_payload'];
@@ -78,20 +77,170 @@ class BotHandler
         $chatId = $callbackQuery["message"]["chat"]["id"] ?? null;
         $callbackQueryId = $callbackQuery["id"] ?? null;
         $messageId = $callbackQuery["message"]["message_id"] ?? null;
-        $currentKeyboard = $callbackQuery["message"]["reply_markup"]["inline_keyboard"] ?? [];
-        $userLanguage = $this->db->getUserLanguage($this->chatId);
-        $user = $this->message['from'] ?? $this->callbackQuery['from'] ?? null;
-        if ($user !== null) {
-            $this->db->saveUser($user);
-        } else {
-            error_log("❌ Cannot save user: 'from' is missing in both message and callbackQuery.");
-        }
-        if (!$callbackData || !$chatId || !$callbackQueryId || !$messageId) {
+        $user = $callbackQuery['from'] ?? null;
+
+        if (!$callbackData || !$chatId || !$callbackQueryId || !$messageId || !$user) {
             error_log("Callback query missing required data.");
+            if ($callbackQueryId) $this->answerCallbackQuery($callbackQueryId, "خطا!", true);
             return;
         }
-    }
 
+        // به‌روزرسانی اطلاعات کاربر
+        $this->db->saveUser($user);
+
+        // بازخوانی chatId و messageId از کالبک (مطمئن‌تر است)
+        $this->chatId = $chatId;
+        $this->messageId = $messageId;
+
+        // ** مدیریت حالت‌ها (States) **
+        // --- اصلاح شده: رفع باگ $stateData و استفاده از FileHandler جدید ---
+        $state = $this->fileHandler->getState($this->chatId); 
+        $data = $this->fileHandler->getData($this->chatId);
+        // --- پایان اصلاح ---
+
+
+        // --- مدیریت ثبت نام ---
+        if (str_starts_with($callbackData, 'set_major_')) {
+            if ($state !== 'awaiting_major') {
+                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است. لطفا از /start register مجدد شروع کنید.", true);
+                return;
+            }
+            $data['major'] = substr($callbackData, 10); // 'tajrobi' or 'riazi'
+            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
+            $this->fileHandler->saveState($this->chatId, 'awaiting_grade'); // اصلاح شد
+            $this->askGrade(); //
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
+
+        if (str_starts_with($callbackData, 'set_grade_')) {
+            if ($state !== 'awaiting_grade') {
+                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است.", true);
+                return;
+            }
+            $data['grade'] = substr($callbackData, 10); // '10', '11', '12'
+            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
+            $this->fileHandler->saveState($this->chatId, 'awaiting_report_time'); // اصلاح شد
+            $this->askReportTime(); //
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
+
+        if (str_starts_with($callbackData, 'set_time_')) {
+            if ($state !== 'awaiting_report_time') {
+                $this->answerCallbackQuery($callbackQueryId, "مرحله ثبت نام منقضی شده است.", true);
+                return;
+            }
+            $data['time'] = substr($callbackData, 9); // '19:00:00', ...
+
+            // ** پایان ثبت نام **
+            $this->db->finalizeStudentRegistration(
+                $this->chatId,
+                $data['first_name'] ?? 'ناشناس',
+                $data['last_name'] ?? '',
+                $data['major'],
+                $data['grade'],
+                $data['time']
+            );
+
+            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: پاک کردن حالت
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "ثبت نام شما با موفقیت انجام شد."]);
+            $this->showMainMenu($this->db->isAdmin($this->chatId)); //
+
+            // اطلاع به ادمین‌ها
+            $this->notifyAdminsOfRegistration($this->chatId, $data); //
+            $this->answerCallbackQuery($callbackQueryId, "ثبت نام تکمیل شد.", false);
+            return;
+        }
+
+        // --- مدیریت گزارش دهی (بخش اصلاح شده) ---
+
+        if ($callbackData === 'start_daily_report') {
+            $report = $this->db->getTodaysReport($this->chatId);
+            if (!$report) {
+                $this->answerCallbackQuery($callbackQueryId, "هنوز زمان گزارش شما فرا نرسیده است.", true);
+                return;
+            }
+            $this->fileHandler->saveState($this->chatId, 'awaiting_lesson_name'); // اصلاح شد
+            // دیتا را برای گزارش جدید آماده می‌کنیم
+            $this->fileHandler->saveData($this->chatId, [ // اصلاح شد
+                'report_id' => $report['report_id'],
+                'current_entry' => []
+            ]);
+
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "درس مورد نظر را وارد کنید:"]);
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
+
+        if ($callbackData === 'no_study_today') {
+            $report = $this->db->getTodaysReport($this->chatId);
+            if (!$report) {
+                $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن گزارش امروز.", true);
+                return;
+            }
+            $this->fileHandler->saveState($this->chatId, 'awaiting_no_study_reason'); // اصلاح شد
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا دلیل درس نخواندن خود را (متن یا عکس) ارسال کنید:"]);
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
+
+        if ($callbackData === 'no_test') {
+            if ($state !== 'awaiting_test_count') { // فقط در صورتی که منتظر تعداد تست بودیم عمل کن
+                $this->answerCallbackQuery($callbackQueryId);
+                return;
+            }
+
+            $data['current_entry']['test_count'] = 0;
+            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
+            $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision'); // اصلاح شد
+            $this->showEntrySummary($data['current_entry']); //
+            $this->answerCallbackQuery($callbackQueryId, "تست نزدم ثبت شد.");
+            return;
+        }
+
+        if ($callbackData === 'add_next_subject') {
+            if ($state !== 'awaiting_report_decision') {
+                $this->answerCallbackQuery($callbackQueryId);
+                return;
+            }
+            // 1. ذخیره درس فعلی
+            $this->saveCurrentEntryToDb($data); //
+
+            // 2. آماده شدن برای درس بعدی
+            $data['current_entry'] = []; // خالی کردن ورودی فعلی
+            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
+            $this->fileHandler->saveState($this->chatId, 'awaiting_lesson_name'); // اصلاح شد
+
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "درس بعدی را وارد کنید:"]);
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
+
+        if ($callbackData === 'finish_report') {
+            if ($state !== 'awaiting_report_decision') {
+                $this->answerCallbackQuery($callbackQueryId);
+                return;
+            }
+            // 1. ذخیره آخرین درس
+            $this->saveCurrentEntryToDb($data); //
+
+            // 2. اتمام گزارش
+            $reportId = $data['report_id'];
+            $this->db->updateReportStatus($reportId, 'submitted');
+            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: پاک کردن حالت
+
+            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "گزارش شما با موفقیت ثبت شد. ممنون!"]);
+            $this->answerCallbackQuery($callbackQueryId, "گزارش ثبت شد.");
+
+            // 3. اطلاع به ادمین
+            $this->notifyAdminsOfFullReport($reportId); //
+            return;
+        }
+
+        // اگر هیچکدام از موارد بالا نبود، فقط به کالبک پاسخ بده که لودینگ تمام شود
+        $this->answerCallbackQuery($callbackQueryId);
+    }
 
     public function sendRequest($method, $data)
     {
@@ -128,6 +277,7 @@ class BotHandler
             'http_code' => $httpCode,
             'curl_error' => $curlError
         ];
+        // این لاگ به جایی نوشته نمی‌شود، می‌توانید آن را در فایل بنویسید یا از کلاس Logger استفاده کنید
         $logMessage = json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 }

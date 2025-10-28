@@ -29,6 +29,7 @@ class Database
             $this->pdo = new PDO($dsn, $dbConfig['username'], $dbConfig['password'], $options);
         } catch (PDOException $e) {
             error_log("❌ Database Connection Failed: " . $e->getMessage());
+            // Logger::log('error', 'DB Connection Failed', $e->getMessage()); // اگر لاگر دارید
             exit();
         }
     }
@@ -40,7 +41,8 @@ class Database
             $stmt->execute($params);
             return $stmt;
         } catch (PDOException $e) {
-            error_log("❌ SQL Query Failed: " . $e->getMessage());
+            error_log("❌ SQL Query Failed: " . $e->getMessage() . " | SQL: " . $sql);
+            // Logger::log('error', 'SQL Query Failed', $e->getMessage(), ['sql' => $sql, 'params' => $params]);
             return false;
         }
     }
@@ -48,6 +50,7 @@ class Database
     
     public function saveUser($user, $entryToken = null): void
     {
+        // این متد کاربر را در جدول 'users' ذخیره می‌کند
         $sql = "
             INSERT INTO users (chat_id, username, first_name, last_name, language, last_activity, entry_token) 
             VALUES (?, ?, ?, ?, ?, NOW(), ?)
@@ -70,103 +73,17 @@ class Database
 
         $this->query($sql, $params);
     }
-
+    
     //   -------------------------------- users
     public function getAllUsers(): array
     {
         $stmt = $this->query("SELECT * FROM users");
         return $stmt ? $stmt->fetchAll() : [];
     }
-    public function getUsernameByChatId($chatId): string
-    {
-        $stmt = $this->query("SELECT username FROM users WHERE chat_id = ?", [$chatId]);
-        $result = $stmt ? $stmt->fetchColumn() : null;
-        return $result ?? 'Unknown';
-    }
-    public function setUserLanguage($chatId, $language): bool
-    {
-        $stmt = $this->query("UPDATE users SET language = ? WHERE chat_id = ?", [$language, $chatId]);
-        return (bool)$stmt;
-    }
-    public function getUserByUsername($username): array|false
-    {
-        $stmt = $this->query("SELECT * FROM users WHERE username = ? LIMIT 1", [$username]);
-        return $stmt ? $stmt->fetch() : false;
-    }
-    public function getUserLanguage($chatId): string
-    {
-        $stmt = $this->query("SELECT language FROM users WHERE chat_id = ? LIMIT 1", [$chatId]);
-        $result = $stmt ? $stmt->fetchColumn() : null;
-        return $result ?? 'fa';
-    }
+    
     public function getUserInfo($chatId): array|false
     {
         $stmt = $this->query("SELECT * FROM users WHERE chat_id = ?", [$chatId]);
-        return $stmt ? $stmt->fetch() : false;
-    }
-
-    /**
-     * تابع بازنویسی شده با PDO
-     */
-    public function getUserByChatId($chatId)
-    {
-        // کامای اضافی بعد از is_admin در کوئری شما حذف شد
-        $query = "SELECT `id`, `chat_id`, `username`, `first_name`, `last_name`, 
-                         `join_date`, `last_activity`, `status`, `language`, 
-                         `is_admin` 
-                  FROM `users` 
-                  WHERE `chat_id` = ? 
-                  LIMIT 1";
-
-        // استفاده از متد query موجود در کلاس که PDO است
-        $stmt = $this->query($query, [$chatId]);
-
-        if (!$stmt) {
-             error_log("❌ Query failed for getUserByChatId: " . $chatId);
-             return null;
-        }
-
-        $user = $stmt->fetch();
-
-        return $user ?: null;
-    }
-
-    public function getUserByChatIdOrUsername($identifier): array|false
-    {
-        if (is_numeric($identifier)) {
-            $stmt = $this->query("SELECT * FROM users WHERE chat_id = ?", [$identifier]);
-        } else {
-            $username = ltrim($identifier, '@');
-            $stmt = $this->query("SELECT * FROM users WHERE username = ?", [$username]);
-        }
-        return $stmt ? $stmt->fetch() : false;
-    }
-    public function getUserFullName($chatId): string
-    {
-        $stmt = $this->query("SELECT first_name, last_name FROM users WHERE chat_id = ?", [$chatId]);
-        $user = $stmt ? $stmt->fetch() : null;
-        if (!$user) {
-            return '';
-        }
-        return trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-    }
-    public function getUsersBatch($limit = 20, $offset = 0): array
-    {
-        $sql = "SELECT id, chat_id, username, first_name, last_name, join_date, last_activity, status, language, is_admin, entry_token 
-                FROM users 
-                ORDER BY id ASC 
-                LIMIT ? OFFSET ?";
-        $stmt = $this->query($sql, [$limit, $offset]);
-        return $stmt ? $stmt->fetchAll() : [];
-    }
-    public function updateUserStatus($chatId, $status): bool
-    {
-        $stmt = $this->query("UPDATE users SET status = ? WHERE chat_id = ?", [$status, $chatId]);
-        return $stmt && $stmt->rowCount() > 0;
-    }
-    public function getUserByUserId($userId): array|false
-    {
-        $stmt = $this->query("SELECT * FROM users WHERE chat_id = ? LIMIT 1", [$userId]);
         return $stmt ? $stmt->fetch() : false;
     }
 
@@ -182,5 +99,161 @@ class Database
         $stmt = $this->query("SELECT id, chat_id, username FROM users WHERE is_admin = ?", [1]);
         return $stmt ? $stmt->fetchAll() : [];
     }
-    //   -------------------------------- 
+
+    // ======================================================
+    // متدهای جدید برای ربات مشاوره
+    // ======================================================
+
+    //   -------------------------------- students
+    /**
+     * یک دانش آموز جدید ایجاد می‌کند یا وضعیت فعلی را برای ثبت نام آماده می‌کند
+     */
+    public function createStudent(int $chatId): void
+    {
+        $sql = "
+            INSERT INTO students (chat_id, status, created_at) 
+            VALUES (?, 'pending_registration', NOW())
+            ON DUPLICATE KEY UPDATE 
+                status = 'pending_registration' 
+        ";
+        $this->query($sql, [$chatId]);
+    }
+
+    /**
+     * اطلاعات دانش آموز را در پایان ثبت نام به‌روزرسانی می‌کند
+     */
+    public function finalizeStudentRegistration(int $chatId, string $firstName, string $lastName, string $major, string $grade, string $reportTime): bool
+    {
+        $sql = "
+            UPDATE students 
+            SET 
+                first_name = ?, 
+                last_name = ?, 
+                major = ?, 
+                grade = ?, 
+                report_time = ?, 
+                status = 'active'
+            WHERE chat_id = ?
+        ";
+        $stmt = $this->query($sql, [$firstName, $lastName, $major, $grade, $reportTime, $chatId]);
+        return $stmt && $stmt->rowCount() > 0;
+    }
+
+    public function getStudent(int $chatId): array|false
+    {
+        $stmt = $this->query("SELECT * FROM students WHERE chat_id = ?", [$chatId]);
+        return $stmt ? $stmt->fetch() : false;
+    }
+
+    public function getStudentMajor(int $chatId): string|false
+    {
+        $stmt = $this->query("SELECT major FROM students WHERE chat_id = ?", [$chatId]);
+        return $stmt ? $stmt->fetchColumn() : false;
+    }
+
+    /**
+     * دانش آموزانی را برمی‌گرداند که زمان گزارش آن‌ها فرا رسیده است
+     */
+    public function getUsersToNotify(string $time): array
+    {
+        $sql = "SELECT chat_id FROM students WHERE report_time = ? AND status = 'active'";
+        $stmt = $this->query($sql, [$time]);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
+
+    /**
+     * دانش آموزانی را برمی‌گرداند که گزارش نداده‌اند و نیاز به یادآوری دارند
+     */
+    public function getUsersToRemind(): array
+    {
+        $sql = "
+            SELECT r.report_id, r.chat_id 
+            FROM reports r
+            WHERE r.status = 'pending' 
+              AND r.reminder_sent = 0 
+              AND r.notified_at <= NOW() - INTERVAL 1 HOUR
+        ";
+        $stmt = $this->query($sql);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
+
+
+    //   -------------------------------- reports
+    /**
+     * گزارش روزانه را برای دانش آموز ایجاد می‌کند (توسط Cron Job)
+     */
+    public function createDailyReport(int $chatId, string $date, string $notifiedAt): int|false
+    {
+        $sql = "
+            INSERT INTO reports (chat_id, report_date, status, notified_at) 
+            VALUES (?, ?, 'pending', ?)
+        ";
+        $stmt = $this->query($sql, [$chatId, $date, $notifiedAt]);
+        return $stmt ? $this->pdo->lastInsertId() : false;
+    }
+
+    /**
+     * گزارش امروز دانش آموز را بر اساس چت آیدی می‌گیرد
+     */
+    public function getTodaysReport(int $chatId): array|false
+    {
+        $today = date('Y-m-d');
+        $sql = "SELECT * FROM reports WHERE chat_id = ? AND report_date = ? LIMIT 1";
+        $stmt = $this->query($sql, [$chatId, $today]);
+        return $stmt ? $stmt->fetch() : false;
+    }
+    
+    public function getReportById(int $reportId): array|false
+    {
+        $sql = "SELECT * FROM reports WHERE report_id = ? LIMIT 1";
+        $stmt = $this->query($sql, [$reportId]);
+        return $stmt ? $stmt->fetch() : false;
+    }
+
+
+    public function updateReportStatus(int $reportId, string $status): bool
+    {
+        $sql = "UPDATE reports SET status = ? WHERE report_id = ?";
+        $stmt = $this->query($sql, [$status, $reportId]);
+        return $stmt && $stmt->rowCount() > 0;
+    }
+
+    public function updateReportReason(int $reportId, ?string $reason, ?string $photoId): bool
+    {
+        $sql = "UPDATE reports SET reason = ?, reason_photo_id = ?, status = 'reason_provided' WHERE report_id = ?";
+        $stmt = $this->query($sql, [$reason, $photoId, $reportId]);
+        return $stmt && $stmt->rowCount() > 0;
+    }
+
+    public function updateReportReminderSent(int $reportId): bool
+    {
+        $sql = "UPDATE reports SET reminder_sent = 1 WHERE report_id = ?";
+        $stmt = $this->query($sql, [$reportId]);
+        return $stmt && $stmt->rowCount() > 0;
+    }
+
+
+    //   -------------------------------- report_entries
+    /**
+     * یک آیتم (درس) را به گزارش اضافه می‌کند
+     */
+    public function addReportEntry(int $reportId, string $lessonName, string $topic, int $studyTime, int $testCount): bool
+    {
+        $sql = "
+            INSERT INTO report_entries (report_id, lesson_name, topic, study_time, test_count) 
+            VALUES (?, ?, ?, ?, ?)
+        ";
+        $stmt = $this->query($sql, [$reportId, $lessonName, $topic, $studyTime, $testCount]);
+        return (bool)$stmt;
+    }
+
+    /**
+     * تمام آیتم‌های یک گزارش را برای نمایش به ادمین برمی‌گرداند
+     */
+    public function getReportEntries(int $reportId): array
+    {
+        $sql = "SELECT * FROM report_entries WHERE report_id = ?";
+        $stmt = $this->query($sql, [$reportId]);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
 }

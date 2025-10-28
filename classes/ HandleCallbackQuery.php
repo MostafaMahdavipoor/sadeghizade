@@ -24,7 +24,7 @@ class HandleCallbackQuery
     private $text;
     private $messageId;
     private $message;
-    public $db;
+    public  $db;
     private $fileHandler;
     private $zarinpalPaymentHandler;
     private $callbackId;
