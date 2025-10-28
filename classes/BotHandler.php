@@ -161,8 +161,8 @@ class BotHandler
             return;
         }
 
-        if ($callbackData === 'cancll') {
-            $this->showMainMenu($this->db->isAdmin($this->chatId , $this->messageId));
+        if ($callbackData === 'cancell') {
+            $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
 
             return;
         }
