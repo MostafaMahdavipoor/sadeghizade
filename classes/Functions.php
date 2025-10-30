@@ -81,7 +81,54 @@ trait Functions
     }
 
     //   -------------------------------- توابع گزارش دهی
+private function formatWizardSummary(array $formData): string
+    {
+        // اگر هنوز دیتایی وارد نشده (مرحله اول)، خلاصه‌ای نشان نده
+        if (empty($formData)) {
+            return '';
+        }
 
+        $summaryText = "<b>اطلاعات وارد شده تاکنون:</b>\n";
+        
+        // مپ کردن کلیدهای انگلیسی به لیبل‌های فارسی
+        $labelMap = [
+            'first_name' => '🏷 نام',
+            'last_name'  => '👤 نام خانوادگی',
+            'major'      => '🔬 رشته',
+            'grade'      => '🎓 پایه',
+            'time'       => '⏰ ساعت گزارش'
+        ];
+
+        // مپ کردن مقادیر خاص (مثل tajrobi) به لیبل فارسی
+        $valueMap = [
+            'major' => [
+                'tajrobi' => 'تجربی',
+                'riazi'   => 'ریاضی'
+            ],
+            'grade' => [
+                '10' => 'دهم',
+                '11' => 'یازدهم',
+                '12' => 'دوازدهم'
+            ]
+        ];
+
+        // به ترتیب labelMap نمایش می‌دهیم تا مرتب باشد
+        foreach ($labelMap as $key => $label) {
+            if (isset($formData[$key])) {
+                $value = $formData[$key];
+                
+                // اگر برای این کلید، مپِ مقدار وجود داشت، ترجمه‌اش کن
+                if (isset($valueMap[$key]) && isset($valueMap[$key][$value])) {
+                    $value = $valueMap[$key][$value];
+                }
+                
+                $summaryText .= "{$label}: " . htmlspecialchars($value) . "\n";
+            }
+        }
+
+        $summaryText .= "------------------------------\n";
+        return $summaryText;
+    }
     public function askTestCount(): void
     {
         $buttons = [
@@ -380,7 +427,10 @@ trait Functions
 
     private function askWizardStep(array $stepConfig, array $data, ?int $messageId): void
     {
-        $text = $stepConfig['question'];
+        $summary = $this->formatWizardSummary($data['form_data'] ?? []);
+
+        // 2. متن سوال فعلی را به آن بچسبان
+        $text = $summary . $stepConfig['question'];
         $buttons = [];
 
         if ($stepConfig['type'] === 'buttons') {
@@ -389,15 +439,16 @@ trait Functions
 
         // اضافه کردن دکمه‌های "بازگشت" و "انصراف"
         $navigationButtons = [];
+        $navigationButtons[] = ['text' => '❌ انصراف', 'callback_data' => 'wizard_cancel'];
         if ($data['step'] > 0) { // دکمه بازگشت برای مرحله اول (step 0) نمایش داده نشود
             $navigationButtons[] = ['text' => '🔙 بازگشت', 'callback_data' => 'wizard_back'];
         }
-        $navigationButtons[] = ['text' => '❌ انصراف', 'callback_data' => 'wizard_cancel'];
         $buttons[] = $navigationButtons;
 
         $params = [
             "chat_id"      => $this->chatId,
             "text"         => $text,
+            "parse_mode"   => "HTML", 
             "reply_markup" => json_encode(["inline_keyboard" => $buttons]),
         ];
 
@@ -416,9 +467,8 @@ trait Functions
     }
 
 
-    private function finishRegistration(array $formData, ?int $messageId): void
+   private function finishRegistration(array $formData, ?int $messageId): void
     {
-        // 1. ذخیره در دیتابیس
         $this->db->finalizeStudentRegistration(
             $this->chatId,
             $formData['first_name'] ?? 'ناشناس',
@@ -428,29 +478,36 @@ trait Functions
             $formData['time']
         );
 
-        // 2. پاک کردن حالت ویزارد
         $this->fileHandler->saveState($this->chatId, null);
-        $this->fileHandler->saveData($this->chatId, []); // پاک کردن داده‌های ویزارد
-        $this->fileHandler->saveMessageId($this->chatId, null); // پاک کردن آیدی پیام
+        $this->fileHandler->saveData($this->chatId, []); 
+        $this->fileHandler->saveMessageId($this->chatId, null); 
+        $summary = $this->formatWizardSummary($formData); 
+        
+        $text = "✅ <b>ثبت نام شما با موفقیت تکمیل شد.</b>\n\n" .
+                "اطلاعات شما در سامانه ثبت گردید. می‌توانید با استفاده از دکمه زیر به منوی اصلی بازگردید.\n\n" .
+                $summary; 
 
-        // 3. نمایش پیام موفقیت (ویرایش پیام قبلی)
-        $text = "✅ ثبت نام شما با موفقیت انجام شد.";
+        $buttons = [
+            [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']]
+        ];
+
         if ($messageId) {
             $this->sendRequest("editMessageText", [
                 "chat_id" => $this->chatId,
                 "message_id" =>  $messageId,
                 "text" => $text,
-                "reply_markup" => null // دکمه‌ها را پاک کن
+                "parse_mode" => "HTML", 
+                "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
         } else {
-            // (اگر messageId به هر دلیلی نرسید، پیام جدید بفرست)
-            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => $text]);
+            $this->sendRequest("sendMessage", [
+                "chat_id" => $this->chatId, 
+                "text" => $text,
+                "parse_mode" => "HTML", 
+                "reply_markup" => json_encode(['inline_keyboard' => $buttons])
+            ]);
         }
 
-        // 4. نمایش منوی اصلی
-        $this->showMainMenu($this->db->isAdmin($this->chatId));
-
-        // 5. اطلاع به ادمین‌ها
         $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
 }

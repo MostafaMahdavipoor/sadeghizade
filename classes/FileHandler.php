@@ -13,7 +13,7 @@ class FileHandler
     }
 
     //   -------------------------------- State Management
-    
+
     /**
      * ذخیره حالت (state) فعلی کاربر
      */
@@ -53,7 +53,7 @@ class FileHandler
         $allData = $this->getAllData();
         return $allData[$chatId]['data'] ?? [];
     }
-    
+
     //   -------------------------------- Message ID Management
 
     /**
@@ -88,7 +88,7 @@ class FileHandler
     /**
      * ذخیره یک آیدی پیام خاص (مثلاً پیام اصلی منو)
      */
-    public function saveMessageId(int|string $chatId, int|string $messageId): void
+    public function saveMessageId(int|string $chatId, int|string|null $messageId): void
     {
         $allData = $this->getAllData();
         $allData[$chatId]['message_id'] = $messageId;
@@ -112,7 +112,7 @@ class FileHandler
     private function getAllData(): array
     {
         $this->ensureFileExists(); // اطمینان از وجود فایل قبل از خواندن
-        
+
         $content = file_get_contents($this->storageFile);
         $data = json_decode($content, true);
 

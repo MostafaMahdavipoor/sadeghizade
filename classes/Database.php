@@ -47,7 +47,7 @@ class Database
         }
     }
 
-    
+
     public function saveUser($user, $entryToken = null): void
     {
         // این متد کاربر را در جدول 'users' ذخیره می‌کند
@@ -73,14 +73,14 @@ class Database
 
         $this->query($sql, $params);
     }
-    
+
     //   -------------------------------- users
     public function getAllUsers(): array
     {
         $stmt = $this->query("SELECT * FROM users");
         return $stmt ? $stmt->fetchAll() : [];
     }
-    
+
     public function getUserInfo($chatId): array|false
     {
         $stmt = $this->query("SELECT * FROM users WHERE chat_id = ?", [$chatId]);
@@ -150,14 +150,48 @@ class Database
         $stmt = $this->query("SELECT major FROM students WHERE chat_id = ?", [$chatId]);
         return $stmt ? $stmt->fetchColumn() : false;
     }
+    public function getLessons(?int $parentId, string $major): array
+    {
+        // <=> یک عملگر NULL-safe equals است (برای زمانی که parentId=NULL است)
+        $sql = "
+            SELECT lesson_id, name 
+            FROM lessons 
+            WHERE parent_id <=> ?
+              AND (major = ? OR major = 'all')
+            ORDER BY sort_order, name
+        ";
 
+        $stmt = $this->query($sql, [$parentId, $major]);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
+
+    /**
+     * اطلاعات یک درس خاص را با ID آن برمی‌گرداند
+     */
+    public function getLessonById(int $lessonId): array|false
+    {
+        $sql = "SELECT * FROM lessons WHERE lesson_id = ? LIMIT 1";
+        $stmt = $this->query($sql, [$lessonId]);
+        return $stmt ? $stmt->fetch() : false;
+    }
     /**
      * دانش آموزانی را برمی‌گرداند که زمان گزارش آن‌ها فرا رسیده است
      */
-    public function getUsersToNotify(string $time): array
+    public function getUsersToNotify(string $currentTime, string $currentDate): array
     {
-        $sql = "SELECT chat_id FROM students WHERE report_time = ? AND status = 'active'";
-        $stmt = $this->query($sql, [$time]);
+        // این کوئری دانش آموزان فعالی را انتخاب می‌کند
+        // که زمان گزارششان <= زمان فعلی است
+        // و (LEFT JOIN) هیچ گزارشی (reports r) برای تاریخ امروز ندارند.
+        $sql = "
+            SELECT s.chat_id
+            FROM students s
+            LEFT JOIN reports r ON s.chat_id = r.chat_id AND r.report_date = ?
+            WHERE s.status = 'active'
+              AND s.report_time <= ?
+              AND r.report_id IS NULL
+        ";
+
+        $stmt = $this->query($sql, [$currentDate, $currentTime]);
         return $stmt ? $stmt->fetchAll() : [];
     }
 
@@ -202,7 +236,7 @@ class Database
         $stmt = $this->query($sql, [$chatId, $today]);
         return $stmt ? $stmt->fetch() : false;
     }
-    
+
     public function getReportById(int $reportId): array|false
     {
         $sql = "SELECT * FROM reports WHERE report_id = ? LIMIT 1";

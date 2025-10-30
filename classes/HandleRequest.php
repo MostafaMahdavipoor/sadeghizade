@@ -59,7 +59,7 @@ trait HandleRequest
             $this->fileHandler->saveState($this->chatId, 'in_wizard');
             $this->fileHandler->saveData($this->chatId, [
                 'wizard' => 'registration',
-                'step' => -1, 
+                'step' => -1,
                 'form_data' => []
             ]);
             $this->fileHandler->saveMessageId($this->chatId, null);
@@ -69,9 +69,9 @@ trait HandleRequest
 
         if ($this->text == "/start") {
             $this->fileHandler->saveState($this->chatId, null);
-            $this->fileHandler->saveData($this->chatId, []); 
+            $this->fileHandler->saveData($this->chatId, []);
             $this->fileHandler->saveMessageId($this->chatId, null);
-            
+
             $this->showMainMenu($isAdmin);
             return;
         }
@@ -82,11 +82,11 @@ trait HandleRequest
 
             if ($state === 'in_wizard') {
                 $this->processWizard($this->text, false, $messaheId);
-                return; 
+                return;
             }
-            
+
             switch ($state) {
-                
+
                 // --- مراحل گزارش دهی ---
                 case 'awaiting_no_study_reason':
                     $report = $this->db->getTodaysReport($this->chatId);
@@ -98,20 +98,19 @@ trait HandleRequest
                     }
                     break;
 
-                case 'awaiting_lesson_name':
-                    $data['current_entry'] = ['lesson_name' => $this->text];
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_topic'); // اصلاح شد
-                    $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "عنوان/مبحث (مثلا گفتار ۱) را وارد کنید:"]);
-                    break;
 
                 case 'awaiting_topic':
+                    if (!isset($data['current_entry']['lesson_name'])) {
+                        $this->fileHandler->saveState($this->chatId, null);
+                        $this->showMainMenu($isAdmin);
+                        return;
+                    }
+
                     $data['current_entry']['topic'] = $this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
                     $this->fileHandler->saveState($this->chatId, 'awaiting_study_time'); // اصلاح شد
                     $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "زمان مطالعه (به دقیقه) را وارد کنید:"]);
                     break;
-
                 case 'awaiting_study_time':
                     if (!is_numeric($this->text)) {
                         $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (زمان مطالعه به دقیقه):"]);
