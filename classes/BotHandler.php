@@ -173,7 +173,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
 
             $this->sendRequest("sendMessage", [
                 "chat_id" => $this->chatId, 
-                "text" => "✍️ لطفا درس اصلی را انتخاب کنید:",
+                "text" => "✍️ لطفا درس  را  که مطالعه کردید را انتخاب کنید:",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
             $this->answerCallbackQuery($callbackQueryId);
@@ -203,13 +203,13 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 $data['current_entry']['lesson_prefix'] = ($data['current_entry']['lesson_prefix'] ?? '') . $lesson['name'] . " - ";
                 $this->fileHandler->saveData($this->chatId, $data);
 
-                $backButton = [['text' => '🔙 بازگشت', 'callback_data' => 'report_back_to_main_lessons']];
+                $backButton = [['text' => '🔙 بازگشت', 'callback_data' => 'start_daily_report']];
                 $buttons = $this->buildLessonButtons($subLessons, 2, $backButton);
 
                 $this->sendRequest("editMessageText", [
                     "chat_id" => $this->chatId,
                     "message_id" => $this->messageId,
-                    "text" => "زیرمجموعه '" . htmlspecialchars($lesson['name']) . "' را انتخاب کنید:",
+                    "text" => " '" . htmlspecialchars($lesson['name']) . "' را انتخاب کنید:",
                     "reply_markup" => json_encode(['inline_keyboard' => $buttons])
                 ]);
 
@@ -229,7 +229,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 ]);
 
                 $backButtonKeyboard = json_encode(['inline_keyboard' => [
-                    [['text' => '🔙 بازگشت به انتخاب درس', 'callback_data' => 'report_back_to_main_lessons']]
+                    [['text' => '🔙 بازگشت به انتخاب درس', 'callback_data' => 'start_daily_report']]
                 ]]);
 
                 $this->sendRequest("sendMessage", [
