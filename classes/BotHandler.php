@@ -150,30 +150,25 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 return;
             }
 
-            // --- شروع تغییر ---
-            // 1. رشته دانش‌آموز را بگیر
             $major = $this->db->getStudentMajor($this->chatId);
             if (!$major) {
                 $this->answerCallbackQuery($callbackQueryId, "خطا: اطلاعات رشته شما یافت نشد. برای ثبت‌نام مجدد /start register را بزنید.", true);
                 return;
             }
 
-            // 2. دروس اصلی را از دیتابیس بخوان (parent_id = null)
             $mainLessons = $this->db->getLessons(null, $major);
             if (empty($mainLessons)) {
                 $this->answerCallbackQuery($callbackQueryId, "خطا: درسی برای رشته شما در سیستم تعریف نشده است.", true);
                 return;
             }
 
-            // 3. دیتا را برای گزارش جدید آماده کن
             $this->fileHandler->saveData($this->chatId, [ 
                 'report_id' => $report['report_id'],
                 'current_entry' => []
             ]);
-            // 4. یک حالت کلی برای فرآیند گزارش تنظیم کن
+
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_input'); 
 
-            // 5. دکمه‌ها را بساز و ارسال کن
             $buttons = $this->buildLessonButtons($mainLessons); 
 
             $this->sendRequest("sendMessage", [
@@ -183,14 +178,11 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             ]);
             $this->answerCallbackQuery($callbackQueryId);
             return;
-            // --- پایان تغییر ---
         }
-        
-        // --- بلاک جدید برای مدیریت انتخاب درس ---
+
         if (str_starts_with($callbackData, 'select_lesson_')) {
-            // اطمینان از اینکه کاربر در فرآیند گزارش‌دهی است
             if ($state !== 'awaiting_report_input') {
-                $this->answerCallbackQuery($callbackQueryId); // پاسخ بده که لودینگ تمام شود
+                $this->answerCallbackQuery($callbackQueryId);
                 return;
             }
 
@@ -207,14 +199,13 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             $data = $this->fileHandler->getData($this->chatId);
 
             if (!empty($subLessons)) {
-                // --- این درس والد است، زیرمجموعه‌ها را نشان بده ---
-                
-                // پیشوند نام درس (مثلا "فیزیک - ") را در دیتا ذخیره می‌کنیم
+
                 $data['current_entry']['lesson_prefix'] = ($data['current_entry']['lesson_prefix'] ?? '') . $lesson['name'] . " - ";
                 $this->fileHandler->saveData($this->chatId, $data);
 
-                $buttons = $this->buildLessonButtons($subLessons);
-                // پیام قبلی را ویرایش می‌کنیم تا دکمه‌های جدید نشان داده شوند
+                $backButton = [['text' => '🔙 بازگشت', 'callback_data' => 'report_back_to_main_lessons']];
+                $buttons = $this->buildLessonButtons($subLessons, 2, $backButton);
+
                 $this->sendRequest("editMessageText", [
                     "chat_id" => $this->chatId,
                     "message_id" => $this->messageId,
@@ -223,28 +214,28 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 ]);
 
             } else {
-                // --- این درس نهایی است، به مرحله بعد (پرسیدن مبحث) برو ---
-                
-                // نام کامل درس را می‌سازیم (مثلا: "فیزیک - فیزیک دوازدهم")
                 $prefix = $data['current_entry']['lesson_prefix'] ?? '';
                 $data['current_entry']['lesson_name'] = $prefix . $lesson['name'];
-                unset($data['current_entry']['lesson_prefix']); // پیشوند را پاک کن
-                
-                $this->fileHandler->saveData($this->chatId, $data);
-                $this->fileHandler->saveState($this->chatId, 'awaiting_topic'); // برو به حالت پرسیدن مبحث
+                unset($data['current_entry']['lesson_prefix']);
 
-                // پیام دکمه‌ها را ویرایش می‌کنیم تا انتخاب نهایی نمایش داده شود
+                $this->fileHandler->saveData($this->chatId, $data);
+                $this->fileHandler->saveState($this->chatId, 'awaiting_topic');
+
                 $this->sendRequest("editMessageText", [
                     "chat_id" => $this->chatId,
                     "message_id" => $this->messageId,
                     "text" => "✅ درس انتخاب شده: " . htmlspecialchars($data['current_entry']['lesson_name']),
-                    "reply_markup" => null // دکمه‌ها را حذف کن
+                    "reply_markup" => null
                 ]);
 
-                // پیام جدید برای گرفتن مبحث ارسال می‌کنیم
+                $backButtonKeyboard = json_encode(['inline_keyboard' => [
+                    [['text' => '🔙 بازگشت به انتخاب درس', 'callback_data' => 'report_back_to_main_lessons']]
+                ]]);
+
                 $this->sendRequest("sendMessage", [
-                    "chat_id" => $this->chatId, 
-                    "text" => "عنوان/مبحث (مثلا گفتار ۱) را وارد کنید:"
+                    "chat_id" => $this->chatId,
+                    "text" => "عنوان/مبحث (مثلا گفتار ۱) را وارد کنید:",
+                    "reply_markup" => $backButtonKeyboard
                 ]);
             }
 
@@ -257,14 +248,14 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن گزارش امروز.", true);
                 return;
             }
-            $this->fileHandler->saveState($this->chatId, 'awaiting_no_study_reason'); // اصلاح شد
+            $this->fileHandler->saveState($this->chatId, 'awaiting_no_study_reason');
             $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا دلیل درس نخواندن خود را (متن یا عکس) ارسال کنید:"]);
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
 
         if ($callbackData === 'no_test') {
-            if ($state !== 'awaiting_test_count') { // فقط در صورتی که منتظر تعداد تست بودیم عمل کن
+            if ($state !== 'awaiting_test_count') {
                 $this->answerCallbackQuery($callbackQueryId);
                 return;
             }
