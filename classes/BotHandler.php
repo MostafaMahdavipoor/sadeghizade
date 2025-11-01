@@ -71,7 +71,7 @@ class BotHandler
             file_put_contents('log.txt', date('Y-m-d H:i:s') . " - answerPreCheckoutQuery Response: " . print_r(json_decode($response, true), true) . "\n", FILE_APPEND);
         }
     }
-private function buildLessonButtons(array $lessons, int $columns = 2): array
+    private function buildLessonButtons(array $lessons, int $columns = 2): array
     {
         $buttons = [];
         $row = [];
@@ -143,7 +143,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             return;
         }
 
-      if ($callbackData === 'start_daily_report') {
+        if ($callbackData === 'start_daily_report') {
             $report = $this->db->getTodaysReport($this->chatId);
             if (!$report) {
                 $this->answerCallbackQuery($callbackQueryId, "هنوز زمان گزارش شما فرا نرسیده است.", true);
@@ -162,17 +162,18 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                 return;
             }
 
-            $this->fileHandler->saveData($this->chatId, [ 
+            $this->fileHandler->saveData($this->chatId, [
                 'report_id' => $report['report_id'],
                 'current_entry' => []
             ]);
 
-            $this->fileHandler->saveState($this->chatId, 'awaiting_report_input'); 
+            $this->fileHandler->saveState($this->chatId, 'awaiting_report_input');
 
-            $buttons = $this->buildLessonButtons($mainLessons); 
+            $buttons = $this->buildLessonButtons($mainLessons);
 
-            $this->sendRequest("sendMessage", [
-                "chat_id" => $this->chatId, 
+            $this->sendRequest("editMessageText", [
+                "chat_id" => $this->chatId,
+                "message_id" => $this->messageId,
                 "text" => "✍️ لطفا درس  را  که مطالعه کردید را انتخاب کنید:",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
@@ -187,7 +188,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             }
 
             $lessonId = (int)substr($callbackData, strlen('select_lesson_'));
-            
+
             $lesson = $this->db->getLessonById($lessonId);
             if (!$lesson) {
                 $this->answerCallbackQuery($callbackQueryId, "خطا: درس یافت نشد.", true);
@@ -212,7 +213,6 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                     "text" => " '" . htmlspecialchars($lesson['name']) . "' را انتخاب کنید:",
                     "reply_markup" => json_encode(['inline_keyboard' => $buttons])
                 ]);
-
             } else {
                 $prefix = $data['current_entry']['lesson_prefix'] ?? '';
                 $data['current_entry']['lesson_name'] = $prefix . $lesson['name'];
@@ -232,11 +232,14 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
                     [['text' => '🔙 بازگشت به انتخاب درس', 'callback_data' => 'start_daily_report']]
                 ]]);
 
-                $this->sendRequest("sendMessage", [
+                $res =  $this->sendRequest("editMessageText", [
                     "chat_id" => $this->chatId,
                     "text" => "عنوان یا مبحث را وارد کنید:",
+                    "message_id" => $this->messageId,
                     "reply_markup" => $backButtonKeyboard
                 ]);
+                $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? null);
+         
             }
 
             $this->answerCallbackQuery($callbackQueryId);
@@ -268,20 +271,20 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             return;
         }
 
-       if ($callbackData === 'add_next_subject') {
+        if ($callbackData === 'add_next_subject') {
             // ... (کد موجود)
-            
+
             // --- تغییر کوچک: بجای ارسال پیام متنی، باید دکمه‌های اصلی را دوباره نشان دهیم ---
             // 1. ذخیره درس فعلی (کد موجود)
-            $this->saveCurrentEntryToDb($data); 
+            $this->saveCurrentEntryToDb($data);
 
             // 2. آماده شدن برای درس بعدی (کد موجود)
-            $data['current_entry'] = []; 
-            $this->fileHandler->saveData($this->chatId, $data); 
-            
+            $data['current_entry'] = [];
+            $this->fileHandler->saveData($this->chatId, $data);
+
             // --- تغییر منطق ---
             // حالت را به 'awaiting_report_input' برمی‌گردانیم
-            $this->fileHandler->saveState($this->chatId, 'awaiting_report_input'); 
+            $this->fileHandler->saveState($this->chatId, 'awaiting_report_input');
 
             // دوباره دروس اصلی را می‌گیریم و نشان می‌دهیم
             $major = $this->db->getStudentMajor($this->chatId);
@@ -289,7 +292,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
             $buttons = $this->buildLessonButtons($mainLessons);
 
             $this->sendRequest("sendMessage", [
-                "chat_id" => $this->chatId, 
+                "chat_id" => $this->chatId,
                 "text" => "➕ درس بعدی را انتخاب کنید:",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);

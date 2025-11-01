@@ -92,7 +92,7 @@ trait HandleRequest
                     $report = $this->db->getTodaysReport($this->chatId);
                     if ($report) {
                         $this->db->updateReportReason($report['report_id'], $this->text, null);
-                        $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "دلیل شما ثبت شد."]);
+                        $this->sendRequest("editMessageText", ["chat_id" => $this->chatId, "message_id" => $this->messageId, "text" => "دلیل شما ثبت شد."]);
                         $this->fileHandler->saveState($this->chatId, null); // اصلاح شد
                         $this->notifyAdminsOfNoStudy($report['report_id']); // اطلاع به ادمین
                     }
@@ -109,7 +109,7 @@ trait HandleRequest
                     $data['current_entry']['topic'] = $this->text;
                     $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
                     $this->fileHandler->saveState($this->chatId, 'awaiting_study_time'); // اصلاح شد
-                    $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "زمان مطالعه (به دقیقه) را وارد کنید:"]);
+                    $this->sendRequest("editMessageText", ["chat_id" => $this->chatId, "message_id" => $this->messageId,"text" => "زمان مطالعه (به دقیقه) را وارد کنید:"]);
                     break;
                 case 'awaiting_study_time':
                     if (!is_numeric($this->text)) {
