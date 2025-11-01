@@ -234,7 +234,7 @@ private function buildLessonButtons(array $lessons, int $columns = 2): array
 
                 $this->sendRequest("sendMessage", [
                     "chat_id" => $this->chatId,
-                    "text" => "عنوان/مبحث (مثلا گفتار ۱) را وارد کنید:",
+                    "text" => "عنوان یا مبحث را وارد کنید:",
                     "reply_markup" => $backButtonKeyboard
                 ]);
             }
