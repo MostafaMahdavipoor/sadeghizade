@@ -207,9 +207,7 @@ trait Functions
         );
     }
 
-    /**
-     * گزارش کامل دانش آموز را برای ادمین‌ها ارسال می‌کند
-     */
+    
     public function notifyAdminsOfFullReport(int $reportId): void
     {
         $report = $this->db->getReportById($reportId);
@@ -221,7 +219,6 @@ trait Functions
         $username = $userInfo['username'] ? "@" . $userInfo['username'] : "ندارد";
         $studentName = $student['first_name'] . ' ' . $student['last_name'];
 
-        // --- اصلاح شده: استفاده از HTML ---
         $text = "✅ <b>گزارش ثبت شده توسط:</b> " . htmlspecialchars($studentName) . "\n" .
             "<b>نام کاربری:</b> " . $username . "\n" .
             "<b>تاریخ:</b> " . $report['report_date'] . "\n\n" .
