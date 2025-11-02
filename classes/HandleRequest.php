@@ -78,16 +78,18 @@ trait HandleRequest
 
         if ($state) {
             $this->deleteMessageWithDelay();
-            $messaheId = $this->fileHandler->getMessageId($this->chatId);
-
+            $botMessageId = $this->fileHandler->getMessageId($this->chatId);
             if ($state === 'in_wizard') {
-                $this->processWizard($this->text, false, $messaheId);
+                $this->processWizard($this->text, false, $botMessageId);
                 return;
             }
+            $reportBackButtons = json_encode(['inline_keyboard' => [
+                [['text' => '« منوی اصلی »', 'callback_data' => 'go_to_main_menu']]
+            ]]);
 
             switch ($state) {
 
-                // --- مراحل گزارش دهی ---
+
                 case 'awaiting_no_study_reason':
                     $report = $this->db->getTodaysReport($this->chatId);
                     if ($report) {
@@ -100,40 +102,90 @@ trait HandleRequest
 
 
                 case 'awaiting_topic':
-                    if (!isset($data['current_entry']['lesson_name'])) {
+                    if (!isset($data['current_entry']['lesson_name']) || !$botMessageId) {
                         $this->fileHandler->saveState($this->chatId, null);
                         $this->showMainMenu($isAdmin);
                         return;
                     }
 
                     $data['current_entry']['topic'] = $this->text;
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_study_time'); // اصلاح شد
-                    $this->sendRequest("editMessageText", ["chat_id" => $this->chatId, "message_id" => $this->messageId,"text" => "زمان مطالعه (به دقیقه) را وارد کنید:"]);
+                    $this->fileHandler->saveData($this->chatId, $data);
+                    $this->fileHandler->saveState($this->chatId, 'awaiting_study_time');
+
+
+                    $summaryText = "✅ <b>درس انتخاب شده:</b> " . htmlspecialchars($data['current_entry']['lesson_name']) . "\n";
+                    $summaryText .= "🏷 <b>مبحث:</b> " . htmlspecialchars($data['current_entry']['topic']) . "\n";
+                    $summaryText .= "------------------------------\u{200F}\n";
+                    $questionText = "لطفا <b>زمان مطالعه (به دقیقه)</b> را وارد کنید:";
+                    $text = $summaryText . $questionText;
+
+                    $this->sendRequest("editMessageText", [
+                        "chat_id" => $this->chatId,
+                        "message_id" => $botMessageId,
+                        "text" => $text,
+                        "parse_mode" => "HTML",
+                        "reply_markup" => $reportBackButtons
+                    ]);
                     break;
+
                 case 'awaiting_study_time':
                     if (!is_numeric($this->text)) {
                         $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (زمان مطالعه به دقیقه):"]);
-                        return; // حالت را تغییر نده
+                        return;
                     }
+                    if (!$botMessageId) {
+                        $this->fileHandler->saveState($this->chatId, null);
+                        $this->showMainMenu($isAdmin);
+                        return;
+                    }
+
                     $data['current_entry']['study_time'] = (int)$this->text;
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_test_count'); // اصلاح شد
-                    $this->askTestCount(); // تابع کمکی برای ارسال دکمه "تست نزدم"
+                    $this->fileHandler->saveData($this->chatId, $data);
+                    $this->fileHandler->saveState($this->chatId, 'awaiting_test_count');
+                    $summaryText = "✅ <b>درس:</b> " . htmlspecialchars($data['current_entry']['lesson_name']) . "\n";
+                    $summaryText .= "🏷 <b>مبحث:</b> " . htmlspecialchars($data['current_entry']['topic']) . "\n";
+                    $summaryText .= "⏱ <b>زمان:</b> " . htmlspecialchars($data['current_entry']['study_time']) . " دقیقه\n";
+                    $summaryText .= "------------------------------\u{200F}\n";
+                    $questionText = "لطفا <b>تعداد تست</b> را وارد کنید:";
+                    $text = $summaryText . $questionText;
+
+                    $testButtons = json_encode(['inline_keyboard' => [
+                        [['text' => '❌ تست نزدم', 'callback_data' => 'no_test']],
+                        [['text' => '« بازگشت', 'callback_data' => 'start_daily_report']],
+                    ]]);
+
+                    $this->sendRequest("editMessageText", [
+                        "chat_id" => $this->chatId,
+                        "message_id" => $botMessageId,
+                        "text" => $text,
+                        "parse_mode" => "HTML",
+                        "reply_markup" => $testButtons
+                    ]);
                     break;
 
                 case 'awaiting_test_count':
                     if (!is_numeric($this->text)) {
                         $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا فقط عدد وارد کنید. (تعداد تست):"]);
-                        return; // حالت را تغییر نده
+                        return;
+                    }
+                    if (!$botMessageId) {
+                        $this->fileHandler->saveState($this->chatId, null);
+                        $this->showMainMenu($isAdmin);
+                        return;
                     }
                     $data['current_entry']['test_count'] = (int)$this->text;
-                    $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-                    $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision'); // اصلاح شد
-                    $this->showEntrySummary($data['current_entry']); // نمایش خلاصه و دکمه‌های "اتمام" و "درس بعدی"
+                    $this->fileHandler->saveData($this->chatId, $data);
+                    $this->saveCurrentEntryToDb($data);
+                    $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision');
+
+                    $this->sendRequest("deleteMessage", [
+                        "chat_id" => $this->chatId,
+                        "message_id" => $botMessageId
+                    ]);
+                    $this->showEntrySummary($data['report_id'], null);
                     break;
+                    return;
             }
-            return; // چون در یک حالت خاص بوده، ادامه نده
         }
     }
 }

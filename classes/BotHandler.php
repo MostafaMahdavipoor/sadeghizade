@@ -171,6 +171,9 @@ class BotHandler
 
             $buttons = $this->buildLessonButtons($mainLessons);
 
+            $buttons[] = [
+                ['text' => '« بازگشت', 'callback_data' => 'go_to_main_menu']
+            ];
             $this->sendRequest("editMessageText", [
                 "chat_id" => $this->chatId,
                 "message_id" => $this->messageId,
@@ -204,7 +207,7 @@ class BotHandler
                 $data['current_entry']['lesson_prefix'] = ($data['current_entry']['lesson_prefix'] ?? '') . $lesson['name'] . " - ";
                 $this->fileHandler->saveData($this->chatId, $data);
 
-                $backButton = [['text' => '🔙 بازگشت', 'callback_data' => 'start_daily_report']];
+                $backButton = [['text' => '« بازگشت', 'callback_data' => 'start_daily_report']];
                 $buttons = $this->buildLessonButtons($subLessons, 2, $backButton);
 
                 $this->sendRequest("editMessageText", [
@@ -215,31 +218,31 @@ class BotHandler
                 ]);
             } else {
                 $prefix = $data['current_entry']['lesson_prefix'] ?? '';
-                $data['current_entry']['lesson_name'] = $prefix . $lesson['name'];
-                unset($data['current_entry']['lesson_prefix']);
+                $lessonName = $prefix . $lesson['name'];
 
+                $data['current_entry']['lesson_name'] = $lessonName;
+                unset($data['current_entry']['lesson_prefix']);
                 $this->fileHandler->saveData($this->chatId, $data);
                 $this->fileHandler->saveState($this->chatId, 'awaiting_topic');
 
-                $this->sendRequest("editMessageText", [
-                    "chat_id" => $this->chatId,
-                    "message_id" => $this->messageId,
-                    "text" => "✅ درس انتخاب شده: " . htmlspecialchars($data['current_entry']['lesson_name']),
-                    "reply_markup" => null
-                ]);
-
                 $backButtonKeyboard = json_encode(['inline_keyboard' => [
-                    [['text' => '🔙 بازگشت به انتخاب درس', 'callback_data' => 'start_daily_report']]
+                    [['text' => '« بازگشت', 'callback_data' => 'start_daily_report']],
                 ]]);
+
+                $summaryText = "✅ <b>درس انتخاب شده:</b>\n " . htmlspecialchars($lessonName) . "\n\n";
+
+                $questionText = "لطفا <b>عنوان یا مبحث</b> مطالعه شده را وارد کنید:";
+                $text = $summaryText . $questionText;
 
                 $res =  $this->sendRequest("editMessageText", [
                     "chat_id" => $this->chatId,
-                    "text" => "عنوان یا مبحث را وارد کنید:",
+                    "text" => $text,
                     "message_id" => $this->messageId,
+                    "parse_mode" => "HTML",
                     "reply_markup" => $backButtonKeyboard
                 ]);
-                $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? null);
-         
+
+                $this->fileHandler->saveMessageId($this->chatId, $res['result']['message_id'] ?? $this->messageId);
             }
 
             $this->answerCallbackQuery($callbackQueryId);
@@ -262,41 +265,31 @@ class BotHandler
                 $this->answerCallbackQuery($callbackQueryId);
                 return;
             }
-
             $data['current_entry']['test_count'] = 0;
-            $this->fileHandler->saveData($this->chatId, $data); // اصلاح شد
-            $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision'); // اصلاح شد
-            $this->showEntrySummary($data['current_entry']); //
+            $this->fileHandler->saveData($this->chatId, $data);
+            $this->saveCurrentEntryToDb($data);
+            $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision');
+            $this->showEntrySummary($data['report_id'], $this->messageId);
             $this->answerCallbackQuery($callbackQueryId, "تست نزدم ثبت شد.");
             return;
         }
 
         if ($callbackData === 'add_next_subject') {
-            // ... (کد موجود)
 
-            // --- تغییر کوچک: بجای ارسال پیام متنی، باید دکمه‌های اصلی را دوباره نشان دهیم ---
-            // 1. ذخیره درس فعلی (کد موجود)
             $this->saveCurrentEntryToDb($data);
-
-            // 2. آماده شدن برای درس بعدی (کد موجود)
             $data['current_entry'] = [];
             $this->fileHandler->saveData($this->chatId, $data);
-
-            // --- تغییر منطق ---
-            // حالت را به 'awaiting_report_input' برمی‌گردانیم
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_input');
-
-            // دوباره دروس اصلی را می‌گیریم و نشان می‌دهیم
             $major = $this->db->getStudentMajor($this->chatId);
             $mainLessons = $this->db->getLessons(null, $major);
             $buttons = $this->buildLessonButtons($mainLessons);
 
-            $this->sendRequest("sendMessage", [
+            $this->sendRequest("editMessageText", [
                 "chat_id" => $this->chatId,
+                "message_id" => $this->messageId,
                 "text" => "➕ درس بعدی را انتخاب کنید:",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
-            // --- پایان تغییر ---
 
             $this->answerCallbackQuery($callbackQueryId);
             return;

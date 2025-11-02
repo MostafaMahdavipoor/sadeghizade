@@ -56,7 +56,7 @@ trait Functions
         ]);
     }
 
-   
+
     public function notifyAdminsOfRegistration(int $chatId, array $data): void
     {
         $studentInfo = $this->db->getUserInfo($chatId);
@@ -81,7 +81,7 @@ trait Functions
     }
 
     //   -------------------------------- توابع گزارش دهی
-private function formatWizardSummary(array $formData): string
+    private function formatWizardSummary(array $formData): string
     {
         // اگر هنوز دیتایی وارد نشده (مرحله اول)، خلاصه‌ای نشان نده
         if (empty($formData)) {
@@ -89,7 +89,7 @@ private function formatWizardSummary(array $formData): string
         }
 
         $summaryText = "<b>اطلاعات وارد شده تاکنون:</b>\n";
-        
+
         // مپ کردن کلیدهای انگلیسی به لیبل‌های فارسی
         $labelMap = [
             'first_name' => '🏷 نام',
@@ -116,17 +116,17 @@ private function formatWizardSummary(array $formData): string
         foreach ($labelMap as $key => $label) {
             if (isset($formData[$key])) {
                 $value = $formData[$key];
-                
+
                 // اگر برای این کلید، مپِ مقدار وجود داشت، ترجمه‌اش کن
                 if (isset($valueMap[$key]) && isset($valueMap[$key][$value])) {
                     $value = $valueMap[$key][$value];
                 }
-                
+
                 $summaryText .= "{$label}: " . htmlspecialchars($value) . "\n";
             }
         }
 
-        $summaryText .= "------------------------------\n";
+        $summaryText .=  "------------------------------\u{200F}\n";
         return $summaryText;
     }
     public function askTestCount(): void
@@ -141,35 +141,55 @@ private function formatWizardSummary(array $formData): string
         ]);
     }
 
-    /**
-     * خلاصه درس وارد شده را نمایش می‌دهد
-     */
-    public function showEntrySummary(array $entryData): void
+    public function showEntrySummary(int $reportId, ?int $messageId = null): void
     {
-        // --- اصلاح شده: استفاده از HTML ---
-        $text = "<b>خلاصه درس ثبت شده:</b>\n\n" .
-            "<b>درس:</b> " . htmlspecialchars($entryData['lesson_name']) . "\n" .
-            "<b>مبحث:</b> " . htmlspecialchars($entryData['topic']) . "\n" .
-            "<b>زمان مطالعه:</b> " . htmlspecialchars($entryData['study_time']) . " دقیقه\n" .
-            "<b>تعداد تست:</b> " . htmlspecialchars($entryData['test_count']) . "\n\n" .
-            "آیا می‌خواهید درس دیگری ثبت کنید؟";
+        $entries = $this->db->getReportEntries($reportId);
 
-        $buttons = [
-            [['text' => '✅ اتمام گزارش', 'callback_data' => 'finish_report']],
-            [['text' => '➕ ثبت درس بعدی', 'callback_data' => 'add_next_subject']],
+        if (empty($entries)) {
+            $text = "خطا: درسی برای نمایش یافت نشد.";
+            $buttons = [
+                [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']]
+            ];
+        } else {
+            $text = "<b>📊 خلاصه گزارش شما تاکنون:</b>\n\n";
+            $totalTime = 0;
+            $totalTests = 0;
+
+            foreach ($entries as $index => $entry) {
+                $text .= "<b>" . ($index + 1) . ". درس:</b> " . htmlspecialchars($entry['lesson_name']) . "\n" .
+                    "   <b>مبحث:</b> " . htmlspecialchars($entry['topic']) . "\n" .
+                    "   <b>زمان:</b> " . $entry['study_time'] . " دقیقه\n" .
+                    "   <b>تست:</b> " . $entry['test_count'] . " عدد\n" .
+                    "------------------------------\u{200F}\n";
+                $totalTime += (int)$entry['study_time'];
+                $totalTests += (int)$entry['test_count'];
+            }
+
+            $text .= "\n<b>جمع کل زمان:</b> " . $totalTime . " دقیقه\n";
+            $text .= "<b>جمع کل تست:</b> " . $totalTests . " عدد\n\n";
+            $text .= "آیا می‌خواهید درس دیگری ثبت کنید؟";
+
+            $buttons = [
+                [['text' => '✅ اتمام گزارش', 'callback_data' => 'finish_report']],
+                [['text' => '➕ ثبت درس بعدی', 'callback_data' => 'add_next_subject']],
+            ];
+        }
+        $params = [
+            "chat_id"      => $this->chatId,
+            "text"         => $text,
+            "parse_mode"   => "HTML",
+            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ];
 
-        $this->sendRequest("sendMessage", [
-            "chat_id" => $this->chatId,
-            "text" => $text,
-            "parse_mode" => "HTML", // (این از قبل درست بود)
-            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
-        ]);
+        if ($messageId) {
+            $params["message_id"] = $messageId;
+            $this->sendRequest("editMessageText", $params);
+        } else {
+            $this->sendRequest("sendMessage", $params);
+        }
     }
 
-    /**
-     * اطلاعات فعلی (current_entry) را در دیتابیس ذخیره می‌کند
-     */
+
     public function saveCurrentEntryToDb(array $stateData): bool
     {
         if (empty($stateData['report_id']) || empty($stateData['current_entry'])) {
@@ -205,7 +225,7 @@ private function formatWizardSummary(array $formData): string
         $text = "✅ <b>گزارش ثبت شده توسط:</b> " . htmlspecialchars($studentName) . "\n" .
             "<b>نام کاربری:</b> " . $username . "\n" .
             "<b>تاریخ:</b> " . $report['report_date'] . "\n\n" .
-            "------------------------------\n";
+            "------------------------------\u{200F}\n";
 
         if (empty($entries)) {
             $text .= "گزارشی ثبت نشده است (خطای احتمالی).";
@@ -215,7 +235,7 @@ private function formatWizardSummary(array $formData): string
                     "   <b>مبحث:</b> " . htmlspecialchars($entry['topic']) . "\n" .
                     "   <b>زمان:</b> " . $entry['study_time'] . " دقیقه\n" .
                     "   <b>تست:</b> " . $entry['test_count'] . " عدد\n" .
-                    "------------------------------\n";
+                    "------------------------------\u{200F}\n";
             }
         }
 
@@ -370,9 +390,7 @@ private function formatWizardSummary(array $formData): string
             if ($currentStep > 0) {
                 $currentStep--; // برگرد به مرحله قبل
             }
-        }
-        // اگر ورودی از مرحله قبلی آمده است (نه اولین نمایش یا بازگشت)
-        elseif ($currentStep >= 0 && $inputValue !== null) {
+        } elseif ($currentStep >= 0 && $inputValue !== null) {
             $stepConfig = $config[$currentStep]; // کانفیگ مرحله‌ای که *تمام شد*
 
             if ($isCallback) {
@@ -441,14 +459,14 @@ private function formatWizardSummary(array $formData): string
         $navigationButtons = [];
         $navigationButtons[] = ['text' => '❌ انصراف', 'callback_data' => 'wizard_cancel'];
         if ($data['step'] > 0) { // دکمه بازگشت برای مرحله اول (step 0) نمایش داده نشود
-            $navigationButtons[] = ['text' => '🔙 بازگشت', 'callback_data' => 'wizard_back'];
+            $navigationButtons[] = ['text' => '« بازگشت', 'callback_data' => 'wizard_back'];
         }
         $buttons[] = $navigationButtons;
 
         $params = [
             "chat_id"      => $this->chatId,
             "text"         => $text,
-            "parse_mode"   => "HTML", 
+            "parse_mode"   => "HTML",
             "reply_markup" => json_encode(["inline_keyboard" => $buttons]),
         ];
 
@@ -467,7 +485,7 @@ private function formatWizardSummary(array $formData): string
     }
 
 
-   private function finishRegistration(array $formData, ?int $messageId): void
+    private function finishRegistration(array $formData, ?int $messageId): void
     {
         $this->db->finalizeStudentRegistration(
             $this->chatId,
@@ -479,16 +497,16 @@ private function formatWizardSummary(array $formData): string
         );
 
         $this->fileHandler->saveState($this->chatId, null);
-        $this->fileHandler->saveData($this->chatId, []); 
-        $this->fileHandler->saveMessageId($this->chatId, null); 
-        $summary = $this->formatWizardSummary($formData); 
-        
+        $this->fileHandler->saveData($this->chatId, []);
+        $this->fileHandler->saveMessageId($this->chatId, null);
+        $summary = $this->formatWizardSummary($formData);
+
         $text = "✅ <b>ثبت نام شما با موفقیت تکمیل شد.</b>\n\n" .
-                "اطلاعات شما در سامانه ثبت گردید. می‌توانید با استفاده از دکمه زیر به منوی اصلی بازگردید.\n\n" .
-                $summary; 
+            "اطلاعات شما در سامانه ثبت گردید. می‌توانید با استفاده از دکمه زیر به منوی اصلی بازگردید.\n\n" .
+            $summary;
 
         $buttons = [
-            [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']]
+            [['text' => '« بازگشت', 'callback_data' => 'go_to_main_menu']]
         ];
 
         if ($messageId) {
@@ -496,14 +514,14 @@ private function formatWizardSummary(array $formData): string
                 "chat_id" => $this->chatId,
                 "message_id" =>  $messageId,
                 "text" => $text,
-                "parse_mode" => "HTML", 
+                "parse_mode" => "HTML",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
         } else {
             $this->sendRequest("sendMessage", [
-                "chat_id" => $this->chatId, 
+                "chat_id" => $this->chatId,
                 "text" => $text,
-                "parse_mode" => "HTML", 
+                "parse_mode" => "HTML",
                 "reply_markup" => json_encode(['inline_keyboard' => $buttons])
             ]);
         }
