@@ -4,7 +4,9 @@ namespace Bot;
 
 use Config\AppConfig;
 use Payment\ZarinpalPaymentHandler;
-
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use CURLFile;
 class BotHandler
 {
     use HandleRequest;
@@ -381,5 +383,89 @@ class BotHandler
 
         $this->showAdminPanel($this->messageId);
         $this->answerCallbackQuery($callbackQueryId);
+    }
+
+    private function handleAdminExportStudent($callbackQueryId, $callbackData)
+    {
+
+        $studentChatId = (int)substr($callbackData, strlen('admin_export_student_'));
+        if ($studentChatId <= 0) {
+            $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن دانش‌آموز.", true);
+            return;
+        }
+
+        $this->answerCallbackQuery($callbackQueryId, "⏳ در حال آماده‌سازی فایل اکسل... لطفاً کمی صبر کنید.", false);
+
+        try {
+
+            $student = $this->db->getStudent($studentChatId);
+            $reportData = $this->db->getStudentDetailedReportData($studentChatId);
+
+            if (!$student || empty($reportData)) {
+                $this->sendRequest("sendMessage", [
+                    "chat_id" => $this->chatId,
+                    "text" => "❌ هیچ گزارش ثبت‌شده‌ای (submitted) برای این دانش‌آموز یافت نشد تا خروجی اکسل تهیه شود."
+                ]);
+                return;
+            }
+
+
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+
+            $sheet->setRightToLeft(true);
+            $sheet->setTitle('گزارش دانش‌آموز');
+
+            $sheet->setCellValue('A1', 'تاریخ');
+            $sheet->setCellValue('B1', 'درس');
+            $sheet->setCellValue('C1', 'مبحث');
+            $sheet->setCellValue('D1', 'زمان مطالعه (دقیقه)');
+            $sheet->setCellValue('E1', 'تعداد تست');
+            $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+
+
+            $row = 2;
+            foreach ($reportData as $entry) {
+                $sheet->setCellValue('A' . $row, $entry['report_date']);
+                $sheet->setCellValue('B' . $row, $entry['lesson_name']);
+                $sheet->setCellValue('C' . $row, $entry['topic']);
+                $sheet->setCellValue('D' . $row, $entry['study_time']);
+                $sheet->setCellValue('E' . $row, $entry['test_count']);
+                $row++;
+            }
+
+            foreach (range('A', 'E') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            $studentName = preg_replace('/[^A-Za-z0-9_]/', '', $student['first_name'] . '_' . $student['last_name']); // امن‌سازی نام
+            $fileName = "report_{$studentName}_{$studentChatId}_" . time() . ".xlsx";
+
+
+            $filePath = dirname(__DIR__, 2) . '/temp/' . $fileName;
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($filePath);
+
+
+            $caption = "خروجی اکسل گزارش‌های دانش‌آموز:\n" . $student['first_name'] . ' ' . $student['last_name'];
+
+            $this->sendRequest('sendDocument', [
+                'chat_id' => $this->chatId,
+                'document' => new \CURLFile(realpath($filePath)),
+                'caption' => $caption,
+                'reply_to_message_id' => $this->messageId
+            ]);
+
+            unlink($filePath);
+
+        } catch (\Exception $e) {
+            error_log("خطا در ساخت اکسل: " . $e->getMessage());
+            $this->sendRequest("sendMessage", [
+                "chat_id" => $this->chatId,
+                "text" => "❌ بروز خطا در هنگام ساخت فایل اکسل. لطفا لاگ سرور را بررسی کنید."
+            ]);
+        }
     }
 }

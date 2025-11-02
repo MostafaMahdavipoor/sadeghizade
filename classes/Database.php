@@ -225,7 +225,24 @@ class Database
         $stmt = $this->query($sql, [$chatId, $date, $notifiedAt]);
         return $stmt ? $this->pdo->lastInsertId() : false;
     }
+    public function getStudentDetailedReportData(int $studentChatId): array
+    {
+        $sql = "
+            SELECT
+                r.report_date,
+                re.lesson_name,
+                re.topic,
+                re.study_time,
+                re.test_count
+            FROM report_entries re
+            JOIN reports r ON re.report_id = r.report_id
+            WHERE r.chat_id = ? AND r.status = 'submitted'
+            ORDER BY r.report_date DESC, re.entry_id ASC
+        ";
 
+        $stmt = $this->query($sql, [$studentChatId]);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
 
     public function getTodaysReport(int $chatId): array|false
     {
