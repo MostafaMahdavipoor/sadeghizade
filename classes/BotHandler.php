@@ -7,6 +7,7 @@ use Payment\ZarinpalPaymentHandler;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use CURLFile;
+use morilog\Jalali\Jalalian;
 class BotHandler
 {
     use HandleRequest;
@@ -385,9 +386,12 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
+    /**
+     * کالبک دکمه 'admin_export_student_' را مدیریت می‌کند
+     * یک فایل اکسل (با تاریخ شمسی) از گزارش‌های دانش‌آموز ساخته و ارسال می‌کند
+     */
     private function handleAdminExportStudent($callbackQueryId, $callbackData)
     {
-
         $studentChatId = (int)substr($callbackData, strlen('admin_export_student_'));
         if ($studentChatId <= 0) {
             $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن دانش‌آموز.", true);
@@ -397,7 +401,6 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId, "⏳ در حال آماده‌سازی فایل اکسل... لطفاً کمی صبر کنید.", false);
 
         try {
-
             $student = $this->db->getStudent($studentChatId);
             $reportData = $this->db->getStudentDetailedReportData($studentChatId);
 
@@ -413,7 +416,6 @@ class BotHandler
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
-
             $sheet->setRightToLeft(true);
             $sheet->setTitle('گزارش دانش‌آموز');
 
@@ -424,10 +426,14 @@ class BotHandler
             $sheet->setCellValue('E1', 'تعداد تست');
             $sheet->getStyle('A1:E1')->getFont()->setBold(true);
 
-
             $row = 2;
             foreach ($reportData as $entry) {
-                $sheet->setCellValue('A' . $row, $entry['report_date']);
+
+
+                $jalaliDate = Jalalian::fromFormat('Y-m-d', $entry['report_date'])->format('Y/m/d');
+
+
+                $sheet->setCellValue('A' . $row, $jalaliDate);
                 $sheet->setCellValue('B' . $row, $entry['lesson_name']);
                 $sheet->setCellValue('C' . $row, $entry['topic']);
                 $sheet->setCellValue('D' . $row, $entry['study_time']);
@@ -435,21 +441,20 @@ class BotHandler
                 $row++;
             }
 
+
             foreach (range('A', 'E') as $col) {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
 
-            $studentName = preg_replace('/[^A-Za-z0-9_]/', '', $student['first_name'] . '_' . $student['last_name']); // امن‌سازی نام
+            $studentName = preg_replace('/[^A-Za-z0-9_]/', '', $student['first_name'] . '_' . $student['last_name']);
             $fileName = "report_{$studentName}_{$studentChatId}_" . time() . ".xlsx";
-
 
             $filePath = dirname(__DIR__, 2) . '/temp/' . $fileName;
 
             $writer = new Xlsx($spreadsheet);
             $writer->save($filePath);
 
-
-            $caption = "خروجی اکسل گزارش‌های دانش‌آموز:\n" . $student['first_name'] . ' ' . $student['last_name'];
+            $caption = "خروجی اکسل گزارش‌های دانش‌آموز (شمسی):\n" . $student['first_name'] . ' ' . $student['last_name'];
 
             $this->sendRequest('sendDocument', [
                 'chat_id' => $this->chatId,
@@ -461,7 +466,7 @@ class BotHandler
             unlink($filePath);
 
         } catch (\Exception $e) {
-            error_log("خطا در ساخت اکسل: " . $e->getMessage());
+            error_log("خطا در ساخت اکسل شمسی: " . $e->getMessage());
             $this->sendRequest("sendMessage", [
                 "chat_id" => $this->chatId,
                 "text" => "❌ بروز خطا در هنگام ساخت فایل اکسل. لطفا لاگ سرور را بررسی کنید."
