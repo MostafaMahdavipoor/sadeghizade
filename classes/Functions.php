@@ -551,4 +551,103 @@ trait Functions
 
         $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
+    /**
+     * لیست دانش‌آموزان فعال را برای ادمین نمایش می‌دهد
+     */
+    private function handleAdminStudentsList($callbackQueryId)
+    {
+        // از دیتابیس لیست دانش‌آموزان فعال را می‌خوانیم
+        $students = $this->db->getActiveStudents(); // (متد این تابع در بخش ۳ آمده است)
+
+        $buttons = [];
+        if (empty($students)) {
+            $text = "در حال حاضر هیچ دانش‌آموز فعالی در سیستم ثبت نام نکرده است.";
+        } else {
+            $text = "لطفا دانش‌آموز مورد نظر را برای مشاهده آمار انتخاب کنید:";
+
+            // ساخت دکمه برای هر دانش‌آموز
+            foreach ($students as $student) {
+                $name = htmlspecialchars($student['first_name'] . ' ' . $student['last_name']);
+                $grade = htmlspecialchars($student['grade']);
+                $chatId = $student['chat_id'];
+
+                // کالبک دیتا حاوی آیدی دانش‌آموز خواهد بود
+                $buttons[] = [
+                    ['text' => "{$name} (پایه {$grade})", 'callback_data' => "admin_view_student_{$chatId}"]
+                ];
+            }
+        }
+
+        // دکمه بازگشت به پنل ادمین
+        $buttons[] = [['text' => '« بازگشت', 'callback_data' => 'admin_panel']];
+
+        $this->sendRequest("editMessageText", [
+            "chat_id" => $this->chatId,
+            "message_id" => $this->messageId,
+            "text" => $text,
+            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
+        ]);
+
+        $this->answerCallbackQuery($callbackQueryId);
+    }
+
+    /**
+     * آمار کلی یک دانش‌آموز خاص را نمایش می‌دهد
+     */
+    private function handleAdminViewStudent($callbackQueryId, $callbackData)
+    {
+
+        $studentChatId = (int)substr($callbackData, strlen('admin_view_student_'));
+
+        if ($studentChatId <= 0) {
+            $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن دانش‌آموز.", true);
+            return;
+        }
+
+        $stats = $this->db->getStudentStats($studentChatId);
+
+        if (!$stats) {
+            $this->answerCallbackQuery($callbackQueryId, "دانش‌آموز یافت نشد.", true);
+            return;
+        }
+
+        $name = htmlspecialchars($stats['first_name'] . ' ' . $stats['last_name']);
+        $major = $stats['major'] === 'riazi' ? 'ریاضی' : 'تجربی';
+        $grade = htmlspecialchars($stats['grade']);
+
+
+        $totalMinutes = (int)$stats['total_study_time'];
+        $hours = floor($totalMinutes / 60);
+        $minutes = $totalMinutes % 60;
+        $studyTimeFormatted = "{$hours} ساعت و {$minutes} دقیقه";
+
+        $text = "📊 **آمار کلی دانش‌آموز:** \n\n";
+        $text .= "👤 **نام:** {$name}\n";
+        $text .= "🎓 **رشته:** {$major} (پایه {$grade})\n";
+        $text .= "--- \n";
+        $text .= "✅ **گزارش‌های ثبت شده:** " . $stats['submitted_reports'] . " روز\n";
+        $text .= "❌ **گزارش‌های ثبت نشده:** " . $stats['missed_reports'] . " روز\n";
+        $text .= "⏱ **مجموع ساعات مطالعه:** " . $studyTimeFormatted . "\n";
+        $text .= "📝 **مجموع تست‌ها:** " . number_format($stats['total_test_count']) . " عدد\n";
+
+
+        $buttons = [
+            [
+                ['text' => '📥 خروجی اکسل', 'callback_data' => "admin_export_student_{$studentChatId}"]
+            ],
+            [
+                ['text' => '« بازگشت (لیست)', 'callback_data' => 'admin_students']
+            ]
+        ];
+
+        $this->sendRequest("editMessageText", [
+            "chat_id" => $this->chatId,
+            "message_id" => $this->messageId,
+            "text" => $text,
+            "parse_mode" => "HTML", // به دلیل استفاده از <b>
+            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
+        ]);
+
+        $this->answerCallbackQuery($callbackQueryId);
+    }
 }

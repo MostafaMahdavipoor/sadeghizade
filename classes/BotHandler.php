@@ -187,7 +187,18 @@ class BotHandler
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
-
+        if ($callbackData === 'admin_students') {
+            $this->handleAdminStudentsList($callbackQueryId);
+            return;
+        }
+        if (str_starts_with($callbackData, 'admin_view_student_')) {
+            $this->handleAdminViewStudent($callbackQueryId, $callbackData);
+            return;
+        }
+        if (str_starts_with($callbackData, 'admin_export_student_')) {
+            $this->handleAdminExportStudent($callbackQueryId, $callbackData);
+            return;
+        }
         if (str_starts_with($callbackData, 'select_lesson_')) {
             if ($state !== 'awaiting_report_input') {
                 $this->answerCallbackQuery($callbackQueryId);

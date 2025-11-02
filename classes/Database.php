@@ -226,9 +226,7 @@ class Database
         return $stmt ? $this->pdo->lastInsertId() : false;
     }
 
-    /**
-     * گزارش امروز دانش آموز را بر اساس چت آیدی می‌گیرد
-     */
+
     public function getTodaysReport(int $chatId): array|false
     {
         $today = date('Y-m-d');
@@ -267,10 +265,6 @@ class Database
     }
 
 
-    //   -------------------------------- report_entries
-    /**
-     * یک آیتم (درس) را به گزارش اضافه می‌کند
-     */
     public function addReportEntry(int $reportId, string $lessonName, string $topic, int $studyTime, int $testCount): bool
     {
         $sql = "
@@ -281,13 +275,57 @@ class Database
         return (bool)$stmt;
     }
 
-    /**
-     * تمام آیتم‌های یک گزارش را برای نمایش به ادمین برمی‌گرداند
-     */
+
     public function getReportEntries(int $reportId): array
     {
         $sql = "SELECT * FROM report_entries WHERE report_id = ?";
         $stmt = $this->query($sql, [$reportId]);
         return $stmt ? $stmt->fetchAll() : [];
+    }
+
+    public function getActiveStudents(): array
+    {
+        $sql = "
+            SELECT chat_id, first_name, last_name, grade 
+            FROM students 
+            WHERE status = 'active' 
+            ORDER BY last_name, first_name
+        ";
+
+        $stmt = $this->query($sql);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
+
+
+    public function getStudentStats(int $chat_id): array|false
+    {
+        $sql = "
+            SELECT 
+                s.first_name, s.last_name, s.major, s.grade,
+                
+                (SELECT COUNT(*) FROM reports r 
+                 WHERE r.chat_id = s.chat_id AND r.status = 'submitted') 
+                 as submitted_reports,
+                 
+                (SELECT COUNT(*) FROM reports r 
+                 WHERE r.chat_id = s.chat_id AND r.status != 'submitted' AND r.report_date < CURDATE()) 
+                 as missed_reports,
+                 
+                IFNULL((SELECT SUM(re.study_time) FROM report_entries re 
+                        JOIN reports r ON re.report_id = r.report_id 
+                        WHERE r.chat_id = s.chat_id), 0) 
+                as total_study_time,
+                
+                IFNULL((SELECT SUM(re.test_count) FROM report_entries re 
+                        JOIN reports r ON re.report_id = r.report_id 
+                        WHERE r.chat_id = s.chat_id), 0) 
+                as total_test_count
+                
+            FROM students s
+            WHERE s.chat_id = ?
+        ";
+
+        $stmt = $this->query($sql, [$chat_id]);
+        return $stmt ? $stmt->fetch() : false;
     }
 }

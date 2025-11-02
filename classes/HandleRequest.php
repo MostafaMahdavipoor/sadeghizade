@@ -31,8 +31,8 @@ trait HandleRequest
                 $this->db->updateReportReason($report['report_id'], $reasonText, $photoId);
 
                 $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "دلیل شما (به همراه عکس) ثبت شد."]);
-                $this->fileHandler->saveState($this->chatId, null); // پاک کردن حالت
-                $this->notifyAdminsOfNoStudy($report['report_id']); // اطلاع به ادمین
+                $this->fileHandler->saveState($this->chatId, null);
+                $this->notifyAdminsOfNoStudy($report['report_id']);
             }
             return;
         }
@@ -95,8 +95,8 @@ trait HandleRequest
                     if ($report) {
                         $this->db->updateReportReason($report['report_id'], $this->text, null);
                         $this->sendRequest("editMessageText", ["chat_id" => $this->chatId, "message_id" => $this->messageId, "text" => "دلیل شما ثبت شد."]);
-                        $this->fileHandler->saveState($this->chatId, null); // اصلاح شد
-                        $this->notifyAdminsOfNoStudy($report['report_id']); // اطلاع به ادمین
+                        $this->fileHandler->saveState($this->chatId, null);
+                        $this->notifyAdminsOfNoStudy($report['report_id']);
                     }
                     break;
 
@@ -184,7 +184,6 @@ trait HandleRequest
                     ]);
                     $this->showEntrySummary($data['report_id'], null);
                     break;
-                    return;
             }
         }
     }
