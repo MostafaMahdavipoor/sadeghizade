@@ -207,7 +207,7 @@ trait Functions
         );
     }
 
-    
+
     public function notifyAdminsOfFullReport(int $reportId): void
     {
         $report = $this->db->getReportById($reportId);
@@ -344,7 +344,6 @@ trait Functions
                     [['text' => 'ساعت ۲۱', 'callback_data' => 'wizard_set_21:00:00']],
                     [['text' => 'ساعت ۲۲', 'callback_data' => 'wizard_set_22:00:00']],
                     [['text' => 'ساعت ۲۳', 'callback_data' => 'wizard_set_23:00:00']],
-                    [['text' => 'ساعت ۰۰', 'callback_data' => 'wizard_set_00:00:00']],
                 ],
                 'value_map' => [
                     'wizard_set_19:00:00' => '19:00:00',
@@ -352,7 +351,6 @@ trait Functions
                     'wizard_set_21:00:00' => '21:00:00',
                     'wizard_set_22:00:00' => '22:00:00',
                     'wizard_set_23:00:00' => '23:00:00',
-                    'wizard_set_00:00:00' => '00:00:00'
                 ]
             ]
         ];
