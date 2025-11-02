@@ -141,7 +141,6 @@ trait Functions
             ]
         ];
 
-        // به ترتیب labelMap نمایش می‌دهیم تا مرتب باشد
         foreach ($labelMap as $key => $label) {
             if (isset($formData[$key])) {
                 $value = $formData[$key];
