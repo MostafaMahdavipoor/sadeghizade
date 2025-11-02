@@ -47,6 +47,35 @@ trait Functions
         }
     }
 
+    public function showAdminPanel($messageId = null): void
+    {
+        $text = "👮‍♂️ به پنل مدیریت خوش آمدید.\n\nلطفا بخش مورد نظر را انتخاب کنید:";
+
+        $buttons = [
+            [
+                ['text' => '👥 دانش آموزان', 'callback_data' => 'admin_students']
+            ],
+            [
+                ['text' => '« بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']
+            ]
+        ];
+
+        $payload = [
+            "chat_id"      => $this->chatId,
+            "text"         => $text,
+            "reply_markup" => json_encode([
+                "inline_keyboard" => $buttons
+            ]),
+        ];
+
+        if ($messageId) {
+            $payload["message_id"] = $messageId;
+            $this->sendRequest("editMessageText", $payload);
+        } else {
+
+            $this->sendRequest("sendMessage", $payload);
+        }
+    }
     public function answerCallbackQuery(string $callbackQueryId, string $text = '', bool $showAlert = false): void
     {
         $this->sendRequest("answerCallbackQuery", [

@@ -137,6 +137,10 @@ class BotHandler
             $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
             return;
         }
+        if ($callbackData === 'admin_panel') {
+            $this->handleAdminPanel($callbackQueryId);
+            return;
+        }
         if ($callbackData === 'go_to_main_menu') {
             $this->showMainMenu($this->db->isAdmin($this->chatId), $messageId);
             $this->answerCallbackQuery($callbackQueryId);
@@ -355,7 +359,16 @@ class BotHandler
             'http_code' => $httpCode,
             'curl_error' => $curlError
         ];
-        // این لاگ به جایی نوشته نمی‌شود، می‌توانید آن را در فایل بنویسید یا از کلاس Logger استفاده کنید
         $logMessage = json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+    private function handleAdminPanel($callbackQueryId)
+    {
+        if (!$this->db->isAdmin($this->chatId)) {
+            $this->answerCallbackQuery($callbackQueryId, "شما دسترسی ادمین ندارید.", true);
+            return;
+        }
+
+        $this->showAdminPanel($this->messageId);
+        $this->answerCallbackQuery($callbackQueryId);
     }
 }
