@@ -549,13 +549,10 @@ trait Functions
 
         $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
-    /**
-     * لیست دانش‌آموزان فعال را برای ادمین نمایش می‌دهد
-     */
+
     private function handleAdminStudentsList($callbackQueryId)
     {
-        // از دیتابیس لیست دانش‌آموزان فعال را می‌خوانیم
-        $students = $this->db->getActiveStudents(); // (متد این تابع در بخش ۳ آمده است)
+        $students = $this->db->getActiveStudents();
 
         $buttons = [];
         if (empty($students)) {
@@ -563,20 +560,17 @@ trait Functions
         } else {
             $text = "لطفا دانش‌آموز مورد نظر را برای مشاهده آمار انتخاب کنید:";
 
-            // ساخت دکمه برای هر دانش‌آموز
             foreach ($students as $student) {
                 $name = htmlspecialchars($student['first_name'] . ' ' . $student['last_name']);
                 $grade = htmlspecialchars($student['grade']);
                 $chatId = $student['chat_id'];
 
-                // کالبک دیتا حاوی آیدی دانش‌آموز خواهد بود
                 $buttons[] = [
                     ['text' => "{$name} (پایه {$grade})", 'callback_data' => "admin_view_student_{$chatId}"]
                 ];
             }
         }
 
-        // دکمه بازگشت به پنل ادمین
         $buttons[] = [['text' => '« بازگشت', 'callback_data' => 'admin_panel']];
 
         $this->sendRequest("editMessageText", [
@@ -589,9 +583,7 @@ trait Functions
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-    /**
-     * آمار کلی یک دانش‌آموز خاص را نمایش می‌دهد
-     */
+
     private function handleAdminViewStudent($callbackQueryId, $callbackData)
     {
 
@@ -672,7 +664,7 @@ trait Functions
             "chat_id"      => $this->chatId,
             "message_id"   => $messageId,
             "text"         => $text,
-            "parse_mode"   => "HTML", // برای رندر شدن <b> و <blockquote>
+            "parse_mode"   => "HTML",
             "reply_markup" => json_encode([
                 "inline_keyboard" => $buttons
             ]),
