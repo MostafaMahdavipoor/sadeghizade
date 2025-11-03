@@ -1,5 +1,5 @@
 <?php
-
+/*test*/
 namespace Bot;
 
 use Config\AppConfig;
