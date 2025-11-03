@@ -289,7 +289,7 @@ class BotHandler
             }
             $data['current_entry']['test_count'] = 0;
             $this->fileHandler->saveData($this->chatId, $data);
-            $this->saveCurrentEntryToDb($data);
+            // $this->saveCurrentEntryToDb($data);
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision');
             $this->showEntrySummary($data['report_id'], $this->messageId);
             $this->answerCallbackQuery($callbackQueryId, "تست نزدم ثبت شد.");

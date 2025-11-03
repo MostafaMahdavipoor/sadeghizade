@@ -175,7 +175,7 @@ trait HandleRequest
                     }
                     $data['current_entry']['test_count'] = (int)$this->text;
                     $this->fileHandler->saveData($this->chatId, $data);
-                    $this->saveCurrentEntryToDb($data);
+                    // $this->saveCurrentEntryToDb($data);
                     $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision');
 
                     $this->sendRequest("deleteMessage", [
