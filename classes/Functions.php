@@ -18,7 +18,6 @@ trait Functions
                 ['text' => '✍️ ثبت گزارش روزانه', 'callback_data' => 'start_daily_report']
             ],
             [
-                ['text' => '📅 برنامه مطالعاتی', 'callback_data' => 'view_study_plan'],
                 ['text' => '📞 ارتباط با مشاور', 'callback_data' => 'contact_counselor']
             ]
         ];
@@ -287,7 +286,6 @@ trait Functions
         $username = $userInfo['username'] ? "@" . $userInfo['username'] : "ندارد";
         $studentName = $student['first_name'] . ' ' . $student['last_name'];
 
-        // --- اصلاح شده: استفاده از HTML ---
         $text = "❌ <b>گزارش \"درس نخواندم\"</b>\n\n" .
             "<b>دانش آموز:</b> " . htmlspecialchars($studentName) . "\n" .
             "<b>نام کاربری:</b> " . $username . "\n" .
@@ -299,10 +297,10 @@ trait Functions
             $this->sendRequest("sendMessage", [
                 "chat_id" => $admin['chat_id'],
                 "text" => $text,
-                "parse_mode" => "HTML" // (این از قبل درست بود)
+                "parse_mode" => "HTML"
             ]);
 
-            // اگر عکس هم ارسال شده بود، عکس را هم بفرست
+
             if (!empty($report['reason_photo_id'])) {
                 $this->sendRequest("sendPhoto", [
                     "chat_id" => $admin['chat_id'],

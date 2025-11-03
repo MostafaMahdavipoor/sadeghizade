@@ -318,19 +318,17 @@ class BotHandler
                 $this->answerCallbackQuery($callbackQueryId);
                 return;
             }
-            // 1. ذخیره آخرین درس
-            $this->saveCurrentEntryToDb($data); //
 
-            // 2. اتمام گزارش
+           // $this->saveCurrentEntryToDb($data);
+
             $reportId = $data['report_id'];
             $this->db->updateReportStatus($reportId, 'submitted');
-            $this->fileHandler->saveState($this->chatId, null); // اصلاح شد: پاک کردن حالت
+            $this->fileHandler->saveState($this->chatId, null);
 
             $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "گزارش شما با موفقیت ثبت شد. ممنون!"]);
             $this->answerCallbackQuery($callbackQueryId, "گزارش ثبت شد.");
 
-            // 3. اطلاع به ادمین
-            $this->notifyAdminsOfFullReport($reportId); //
+            $this->notifyAdminsOfFullReport($reportId);
             return;
         }
 
