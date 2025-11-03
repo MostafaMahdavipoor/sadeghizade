@@ -648,4 +648,29 @@ trait Functions
 
         $this->answerCallbackQuery($callbackQueryId);
     }
+    public function showCounselorContact(int $messageId): void
+    {
+        $text = "💬 <b>ارتباط با مشاور</b>\n\n" .
+            "شما می‌توانید برای پرسیدن سوالات خود، دریافت برنامه، و هماهنگی‌های لازم، مستقیماً با مشاور در ارتباط باشید.\n\n" .
+            "جهت ارتباط، از دکمه زیر استفاده کنید:";
+
+        $buttons = [
+            [
+                ['text' => '👤 ارتباط مستقیم با مشاور', 'url' => 'https://t.me/Aliyar_sadeqizadeh']
+            ],
+            [
+                ['text' => '« بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']
+            ]
+        ];
+
+        $this->sendRequest("editMessageText", [
+            "chat_id"      => $this->chatId,
+            "message_id"   => $messageId,
+            "text"         => $text,
+            "parse_mode"   => "HTML",
+            "reply_markup" => json_encode([
+                "inline_keyboard" => $buttons
+            ]),
+        ]);
+    }
 }

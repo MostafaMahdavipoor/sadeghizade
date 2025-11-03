@@ -312,7 +312,11 @@ class BotHandler
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
-
+        if ($callbackData === 'contact_counselor') {
+            $this->showCounselorContact($messageId);
+            $this->answerCallbackQuery($callbackQueryId);
+            return;
+        }
         if ($callbackData === 'finish_report') {
             if ($state !== 'awaiting_report_decision') {
                 $this->answerCallbackQuery($callbackQueryId);
