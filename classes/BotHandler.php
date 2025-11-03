@@ -337,7 +337,6 @@ class BotHandler
             return;
         }
 
-        // اگر هیچکدام از موارد بالا نبود، فقط به کالبک پاسخ بده که لودینگ تمام شود
         $this->answerCallbackQuery($callbackQueryId);
     }
 
