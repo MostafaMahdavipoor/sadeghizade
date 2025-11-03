@@ -325,6 +325,7 @@ class BotHandler
             $this->db->updateReportStatus($reportId, 'submitted');
             $this->fileHandler->saveState($this->chatId, null);
 
+
             $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "گزارش شما با موفقیت ثبت شد. ممنون!"]);
             $this->answerCallbackQuery($callbackQueryId, "گزارش ثبت شد.");
 
