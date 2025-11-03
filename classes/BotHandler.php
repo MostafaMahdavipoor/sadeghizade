@@ -7,11 +7,7 @@ use Payment\ZarinpalPaymentHandler;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use CURLFile;
-
-require_once __DIR__ . '/jdf.php';
-
-use Config\jdf;
-
+use morilog\Jalali\Jalalian;
 class BotHandler
 {
     use HandleRequest;
@@ -342,61 +338,28 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-   public function sendRequest($method, $data)
+    public function sendRequest($method, $data)
     {
         $url = "https://api.telegram.org/bot" . $this->botToken . "/$method";
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
         curl_setopt($ch, CURLOPT_POST, true);
-
-        // --- NEW LOGIC: Check if we are uploading a file ---
-        $isUploading = false;
-        foreach ($data as $value) {
-            if ($value instanceof \CURLFile) {
-                $isUploading = true;
-                break;
-            }
-        }
-
-        if ($isUploading) {
-            // Use multipart/form-data for file upload
-            // Pass $data array directly. cURL sets the Content-Type automatically.
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        } else {
-            // Use application/json for text/button messages
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        }
-        // --- END NEW LOGIC ---
-
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_errno($ch) ? curl_error($ch) : null;
         curl_close($ch);
-        
         $this->logTelegramRequest($method, $data, $response, $httpCode, $curlError);
-
         if ($curlError) {
-            // +++ Added new detailed log +++
-            Logger::log('error', 'sendRequest cURL Error', $curlError . ' (' . curl_strerror($curlError) . ')', ['method' => $method], true);
             return false;
         }
-
-        $responseData = json_decode($response, true);
-
-        // Check if API call was successful
-        if ($httpCode >= 200 && $httpCode < 300 && isset($responseData['ok']) && $responseData['ok'] === true) {
-            return $responseData; // Success! Return the JSON response
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return json_decode($response, true);
         } else {
-            // +++ Added new detailed log for API errors +++
-            Logger::log(
-                'error', 
-                'sendRequest Telegram API Error', 
-                $responseData['description'] ?? 'Unknown API error or non-OK response', 
-                ['method' => $method, 'http_code' => $httpCode, 'response' => $response],
-                true
-            );
-            return false; // Failure
+            $errorResponse = json_decode($response, true);
+            $errorMessage = $errorResponse['description'] ?? 'Unknown error';
+            return false;
         }
     }
 
@@ -423,7 +386,10 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-
+    /**
+     * کالبک دکمه 'admin_export_student_' را مدیریت می‌کند
+     * یک فایل اکسل (با تاریخ شمسی) از گزارش‌های دانش‌آموز ساخته و ارسال می‌کند
+     */
     private function handleAdminExportStudent($callbackQueryId, $callbackData)
     {
         $studentChatId = (int)substr($callbackData, strlen('admin_export_student_'));
@@ -464,9 +430,8 @@ class BotHandler
             foreach ($reportData as $entry) {
 
 
-                // این دو خط را جایگزین خط بالا کنید
-                $timestamp = strtotime($entry['report_date']);
-                $jalaliDate = jdf::jdate('Y/m/d', $timestamp, '', 'Asia/Tehran', 'en');
+                $jalaliDate = Jalalian::fromFormat('Y-m-d', $entry['report_date'])->format('Y/m/d');
+
 
                 $sheet->setCellValue('A' . $row, $jalaliDate);
                 $sheet->setCellValue('B' . $row, $entry['lesson_name']);
@@ -499,6 +464,7 @@ class BotHandler
             ]);
 
             unlink($filePath);
+
         } catch (\Exception $e) {
             error_log("خطا در ساخت اکسل شمسی: " . $e->getMessage());
             $this->sendRequest("sendMessage", [
@@ -507,5 +473,4 @@ class BotHandler
             ]);
         }
     }
-
-  }
+}

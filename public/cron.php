@@ -10,8 +10,8 @@ require_once __DIR__ . '/../classes/HandleRequest.php';
 require_once __DIR__ . '/../classes/FileHandler.php';
 // و سایر فایل‌های مورد نیاز...
 
-use Bot\Database;
-use Bot\BotHandler;
+use Config\Database;
+use Config\BotHandler;
 use Config\AppConfig;
 
 date_default_timezone_set('Asia/Tehran');

@@ -269,7 +269,7 @@ trait Functions
             $this->sendRequest("sendMessage", [
                 "chat_id" => $admin['chat_id'],
                 "text" => $text,
-                "parse_mode" => "HTML" // (این از قبل درست بود)
+                "parse_mode" => "HTML"
             ]);
         }
     }
