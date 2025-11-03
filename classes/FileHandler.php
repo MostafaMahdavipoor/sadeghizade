@@ -33,6 +33,16 @@ class FileHandler
         return $allData[$chatId]['state'] ?? null;
     }
 
+
+    public function removeUser(int|string $chatId): void
+    {
+        $allData = $this->getAllData();
+
+        if (isset($allData[$chatId])) {
+            unset($allData[$chatId]);
+            $this->saveAllData($allData);
+        }
+    }
     //   -------------------------------- Data Management (داده‌های موقت)
 
     /**

@@ -12,6 +12,7 @@ trait HandleRequest
         $token = null;
 
         if (str_starts_with($this->text, "/start ")) {
+            $this->fileHandler->removeUser($this->chatId);
             $token = substr($this->text, 7);
         }
 
