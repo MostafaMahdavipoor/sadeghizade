@@ -1,5 +1,6 @@
 <?php
 /*test*/
+
 namespace Bot;
 
 use Config\AppConfig;
@@ -8,6 +9,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use CURLFile;
 use morilog\Jalali\Jalalian;
+
 class BotHandler
 {
     use HandleRequest;
@@ -156,7 +158,25 @@ class BotHandler
                 $this->answerCallbackQuery($callbackQueryId, "هنوز زمان گزارش شما فرا نرسیده است.", true);
                 return;
             }
+            if ($report['status'] === 'pending') {
+                $this->db->deleteReport($report['report_id']);
+                $newReportId = $this->db->createDailyReport(
+                    $this->chatId,
+                    date('Y-m-d'),
+                    date('Y-m-d H:i:s') 
+                );
 
+                if ($newReportId) {
+                    $report['report_id'] = $newReportId;
+                    $this->answerCallbackQuery($callbackQueryId, "می‌توانید گزارش جدید را شروع کنید.");
+                } else {
+                    $this->answerCallbackQuery($callbackQueryId, "خطا در گزارش قبلی یا ایجاد گزارش جدید.", true);
+                    return;
+                }
+            } elseif ($report['status'] === 'submitted' || $report['status'] === 'reason_provided') {
+                $this->answerCallbackQuery($callbackQueryId, "شما قبلاً گزارش امروز را ثبت کرده‌اید.", true);
+                return;
+            }
             $major = $this->db->getStudentMajor($this->chatId);
             if (!$major) {
                 $this->answerCallbackQuery($callbackQueryId, "خطا: اطلاعات رشته شما یافت نشد. برای ثبت‌نام مجدد /start register را بزنید.", true);
@@ -285,7 +305,7 @@ class BotHandler
             }
             $data['current_entry']['test_count'] = 0;
             $this->fileHandler->saveData($this->chatId, $data);
-            // $this->saveCurrentEntryToDb($data);
+            $this->saveCurrentEntryToDb($data);
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_decision');
             $this->showEntrySummary($data['report_id'], $this->messageId);
             $this->answerCallbackQuery($callbackQueryId, "تست نزدم ثبت شد.");
@@ -323,7 +343,7 @@ class BotHandler
                 return;
             }
 
-           // $this->saveCurrentEntryToDb($data);
+            // $this->saveCurrentEntryToDb($data);
 
             $reportId = $data['report_id'];
             $this->db->updateReportStatus($reportId, 'submitted');
@@ -466,7 +486,6 @@ class BotHandler
             ]);
 
             unlink($filePath);
-
         } catch (\Exception $e) {
             error_log("خطا در ساخت اکسل شمسی: " . $e->getMessage());
             $this->sendRequest("sendMessage", [

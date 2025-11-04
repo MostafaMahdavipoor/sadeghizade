@@ -100,14 +100,9 @@ class Database
         return $stmt ? $stmt->fetchAll() : [];
     }
 
-    // ======================================================
-    // متدهای جدید برای ربات مشاوره
-    // ======================================================
-
+  
     //   -------------------------------- students
-    /**
-     * یک دانش آموز جدید ایجاد می‌کند یا وضعیت فعلی را برای ثبت نام آماده می‌کند
-     */
+   
     public function createStudent(int $chatId): void
     {
         $sql = "
@@ -344,5 +339,18 @@ class Database
 
         $stmt = $this->query($sql, [$chat_id]);
         return $stmt ? $stmt->fetch() : false;
+    }
+
+    public function deleteReport(int $reportId): bool
+    {
+        // 1. حذف ورودی‌های گزارش (report_entries)
+        $sqlEntries = "DELETE FROM report_entries WHERE report_id = ?";
+        $this->query($sqlEntries, [$reportId]);
+
+        // 2. حذف گزارش اصلی (reports)
+        $sqlReport = "DELETE FROM reports WHERE report_id = ?";
+        $stmt = $this->query($sqlReport, [$reportId]);
+
+        return (bool)$stmt;
     }
 }
