@@ -358,19 +358,41 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-    public function sendRequest($method, $data)
+   public function sendRequest($method, $data)
     {
         $url = "https://api.telegram.org/bot" . $this->botToken . "/$method";
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        
+        // تشخیص اینکه آیا این یک درخواست آپلود فایل است (مثل sendDocument، sendPhoto)
+        $isFileUpload = false;
+        // روش دقیق‌تر: بررسی وجود نمونه‌ای از CURLFile
+        foreach ($data as $value) {
+            if ($value instanceof CURLFile) {
+                $isFileUpload = true;
+                break;
+            }
+        }
+
+        if ($isFileUpload) {
+            // برای آپلود فایل، از آرایه خام به عنوان POSTFIELDS استفاده می‌کنیم.
+            // cURL به طور خودکار آن را به multipart/form-data تبدیل می‌کند.
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            // توجه: هدر Content-Type: application/json نباید تنظیم شود
+        } else {
+            // برای درخواست‌های معمولی (بدون فایل)، از JSON استفاده می‌کنیم.
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_errno($ch) ? curl_error($ch) : null;
         curl_close($ch);
+        
         $this->logTelegramRequest($method, $data, $response, $httpCode, $curlError);
+        
         if ($curlError) {
             return false;
         }
@@ -379,6 +401,8 @@ class BotHandler
         } else {
             $errorResponse = json_decode($response, true);
             $errorMessage = $errorResponse['description'] ?? 'Unknown error';
+            // در صورت بروز خطا در ارسال، لاگ‌های دقیق‌تری بنویسید
+            error_log("❌ Telegram API Error ($method, HTTP $httpCode): " . $errorMessage);
             return false;
         }
     }
