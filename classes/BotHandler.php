@@ -314,7 +314,6 @@ class BotHandler
 
         if ($callbackData === 'add_next_subject') {
 
-            $this->saveCurrentEntryToDb($data);
             $data['current_entry'] = [];
             $this->fileHandler->saveData($this->chatId, $data);
             $this->fileHandler->saveState($this->chatId, 'awaiting_report_input');
