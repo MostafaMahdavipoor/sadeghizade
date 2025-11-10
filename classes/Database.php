@@ -100,9 +100,9 @@ class Database
         return $stmt ? $stmt->fetchAll() : [];
     }
 
-  
+
     //   -------------------------------- students
-   
+
     public function createStudent(int $chatId): void
     {
         $sql = "
@@ -294,18 +294,33 @@ class Database
         $stmt = $this->query($sql, [$reportId]);
         return $stmt ? $stmt->fetchAll() : [];
     }
-
-    public function getActiveStudents(): array
+    public function getActiveStudentsPaginated(int $page, int $perPage): array
     {
+        $offset = ($page - 1) * $perPage;
         $sql = "
             SELECT chat_id, first_name, last_name, grade 
             FROM students 
             WHERE status = 'active' 
             ORDER BY last_name, first_name
+            LIMIT ? OFFSET ?
         ";
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(1, $perPage, PDO::PARAM_INT);
+            $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll();
+        } catch (PDOException $e) {
+            error_log("❌ SQL Query Failed (Paginated): " . $e->getMessage() . " | SQL: " . $sql);
+            return [];
+        }
+    }
 
+    public function getActiveStudentsCount(): int
+    {
+        $sql = "SELECT COUNT(*) FROM students WHERE status = 'active'";
         $stmt = $this->query($sql);
-        return $stmt ? $stmt->fetchAll() : [];
+        return $stmt ? (int)$stmt->fetchColumn() : 0;
     }
 
 

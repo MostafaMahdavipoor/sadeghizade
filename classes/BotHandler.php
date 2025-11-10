@@ -3,12 +3,13 @@
 
 namespace Bot;
 
+use Bot\jdf;
+
 use Config\AppConfig;
 use Payment\ZarinpalPaymentHandler;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use CURLFile;
-use morilog\Jalali\Jalalian;
 
 class BotHandler
 {
@@ -163,7 +164,7 @@ class BotHandler
                 $newReportId = $this->db->createDailyReport(
                     $this->chatId,
                     date('Y-m-d'),
-                    date('Y-m-d H:i:s') 
+                    date('Y-m-d H:i:s')
                 );
 
                 if ($newReportId) {
@@ -210,8 +211,13 @@ class BotHandler
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
-        if ($callbackData === 'admin_students') {
-            $this->handleAdminStudentsList($callbackQueryId);
+       
+        if (str_starts_with($callbackData, 'admin_view_student_')) {
+            $this->handleAdminViewStudent($callbackQueryId, $callbackData);
+            return;
+        }
+        if ($callbackData === 'admin_students' || str_starts_with($callbackData, 'admin_students_')) {
+            $this->handleAdminStudentsList($callbackQueryId, $callbackData);
             return;
         }
         if (str_starts_with($callbackData, 'admin_view_student_')) {
@@ -358,13 +364,13 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-   public function sendRequest($method, $data)
+    public function sendRequest($method, $data)
     {
         $url = "https://api.telegram.org/bot" . $this->botToken . "/$method";
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        
+
         // تشخیص اینکه آیا این یک درخواست آپلود فایل است (مثل sendDocument، sendPhoto)
         $isFileUpload = false;
         // روش دقیق‌تر: بررسی وجود نمونه‌ای از CURLFile
@@ -390,9 +396,9 @@ class BotHandler
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_errno($ch) ? curl_error($ch) : null;
         curl_close($ch);
-        
+
         $this->logTelegramRequest($method, $data, $response, $httpCode, $curlError);
-        
+
         if ($curlError) {
             return false;
         }
@@ -434,7 +440,7 @@ class BotHandler
      * کالبک دکمه 'admin_export_student_' را مدیریت می‌کند
      * یک فایل اکسل (با تاریخ شمسی) از گزارش‌های دانش‌آموز ساخته و ارسال می‌کند
      */
-    private function handleAdminExportStudent($callbackQueryId, $callbackData)
+   public function handleAdminExportStudent($callbackQueryId, $callbackData)
     {
         $studentChatId = (int)substr($callbackData, strlen('admin_export_student_'));
         if ($studentChatId <= 0) {
@@ -473,9 +479,9 @@ class BotHandler
             $row = 2;
             foreach ($reportData as $entry) {
 
-
-                $jalaliDate = Jalalian::fromFormat('Y-m-d', $entry['report_date'])->format('Y/m/d');
-
+                list($year, $month, $day) = explode('-', $entry['report_date']);
+                $timestamp = mktime(0, 0, 0, (int)$month, (int)$day, (int)$year);
+                $jalaliDate = jdf::jdate('Y-m-d', $timestamp);
 
                 $sheet->setCellValue('A' . $row, $jalaliDate);
                 $sheet->setCellValue('B' . $row, $entry['lesson_name']);

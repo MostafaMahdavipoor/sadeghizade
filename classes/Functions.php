@@ -550,15 +550,34 @@ trait Functions
         $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
 
-    private function handleAdminStudentsList($callbackQueryId)
+   private function handleAdminStudentsList($callbackQueryId, $callbackData)
     {
-        $students = $this->db->getActiveStudents();
+        $page = 1;
+        $perPage = 10; // تعداد دانش‌آموزان در هر صفحه (می‌توانید تغییر دهید)
+
+        // استخراج شماره صفحه از کالبک دیتا
+        // کالبک دیتا می‌تواند 'admin_students' (برای صفحه اول) یا 'admin_students_PAGE' باشد
+        if (str_starts_with($callbackData, 'admin_students_')) {
+            $page = (int)substr($callbackData, strlen('admin_students_'));
+            if ($page < 1) $page = 1; // جلوگیری از شماره صفحه منفی یا صفر
+        }
+
+        // دریافت دانش‌آموزان صفحه فعلی و تعداد کل
+        $students = $this->db->getActiveStudentsPaginated($page, $perPage);
+        $totalStudents = $this->db->getActiveStudentsCount();
+        $totalPages = (int)ceil($totalStudents / $perPage);
+        if ($totalPages == 0) $totalPages = 1; // حداقل یک صفحه وجود دارد (حتی اگر خالی باشد)
 
         $buttons = [];
-        if (empty($students)) {
+        if (empty($students) && $page === 1) {
             $text = "در حال حاضر هیچ دانش‌آموز فعالی در سیستم ثبت نام نکرده است.";
+        } else if (empty($students) && $page > 1) {
+            $text = "خطا: صفحه‌ی دیگری وجود ندارد. به صفحه اول بازگردانده شدید.";
+            // (می‌توانید اینجا دوباره تابع را با page=1 کال کنید، اما ساده‌تر است که فقط پیام بدهید)
+            $page = 1; // بازگشت به صفحه ۱
         } else {
-            $text = "لطفا دانش‌آموز مورد نظر را برای مشاهده آمار انتخاب کنید:";
+            $text = "لطفا دانش‌آموز مورد نظر را برای مشاهده آمار انتخاب کنید:\n";
+            $text .= "<b>(صفحه {$page} از {$totalPages})</b>";
 
             foreach ($students as $student) {
                 $name = htmlspecialchars($student['first_name'] . ' ' . $student['last_name']);
@@ -571,12 +590,28 @@ trait Functions
             }
         }
 
-        $buttons[] = [['text' => '« بازگشت', 'callback_data' => 'admin_panel']];
+        // --- ساخت دکمه‌های صفحه‌بندی ---
+        $paginationButtons = [];
+        if ($page > 1) {
+            $paginationButtons[] = ['text' => '« صفحه قبل', 'callback_data' => 'admin_students_' . ($page - 1)];
+        }
+        if ($page < $totalPages) {
+            $paginationButtons[] = ['text' => 'صفحه بعد »', 'callback_data' => 'admin_students_' . ($page + 1)];
+        }
+
+        if (!empty($paginationButtons)) {
+            // افزودن ردیف دکمه‌های صفحه‌بندی
+            $buttons[] = $paginationButtons;
+        }
+
+        // دکمه بازگشت
+        $buttons[] = [['text' => '« بازگشت به پنل', 'callback_data' => 'admin_panel']];
 
         $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
             "message_id" => $this->messageId,
             "text" => $text,
+            "parse_mode" => "HTML", // به دلیل استفاده از <b>
             "reply_markup" => json_encode(['inline_keyboard' => $buttons])
         ]);
 
