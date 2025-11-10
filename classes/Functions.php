@@ -551,7 +551,7 @@ trait Functions
         $this->notifyAdminsOfRegistration($this->chatId, $formData);
     }
 
-   private function handleAdminStudentsList($callbackQueryId, $callbackData)
+    private function handleAdminStudentsList($callbackQueryId, $callbackData)
     {
         $page = 1;
         $perPage = 10; // تعداد دانش‌آموزان در هر صفحه (می‌توانید تغییر دهید)
@@ -657,7 +657,7 @@ trait Functions
 
         // آمار کلی هفته
         $stats = $this->db->getStudentStatsForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
-        
+
         // **جدید: دریافت جزییات گزارش‌های ثبت شده در این هفته**
         $detailedEntries = $this->db->getStudentDetailedReportDataForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
 
@@ -684,7 +684,7 @@ trait Functions
         $text .= "از <code>{$displayStart}</code>\n";
         $text .= "تا <code>{$displayEnd}</code>\n";
         $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
-        
+
         // --- بخش خلاصه آمار ---
         $text .= "<b>خلاصه آمار هفته:</b>\n";
         $text .= "✅ گزارش ثبت شده: <b>" . $stats['submitted_reports'] . "</b> روز\n";
@@ -698,39 +698,40 @@ trait Functions
 
         if (empty($detailedEntries)) {
             $text .= "<i>(موردی برای نمایش در این هفته یافت نشد)</i>\n";
-       } else {
+        } else {
             // گروه‌بندی گزارش‌ها بر اساس تاریخ
             $groupedEntries = [];
             foreach ($detailedEntries as $entry) {
                 $groupedEntries[$entry['report_date']][] = $entry;
             }
 
-            $firstDate = true; // برای کنترل جداکننده
+            $firstDate = true;
             foreach ($groupedEntries as $date => $entries) {
-                
-                // اضافه کردن جداکننده *بین* روزها
+
+                // جداکننده بین روزها
                 if (!$firstDate) {
-                    $text .= "  - - - - - - - - - - - - - - -\n";
+                    $text .= "\n───────────────\n";
                 }
                 $firstDate = false;
 
                 // تبدیل تاریخ به شمسی
                 list($y, $m, $d) = explode('-', $date);
                 $ts = mktime(0, 0, 0, (int)$m, (int)$d, (int)$y);
-                $shamsiDate = jdf::jdate('l, j F', $ts); // e.g., شنبه, 10 آبان
-                
+                $shamsiDate = jdf::jdate('l, j F', $ts); // مثل: شنبه، 10 آبان
+
+                // 🗓 نمایش تاریخ
                 $text .= "\n🗓 <b>{$shamsiDate}</b>\n";
-                
+
                 foreach ($entries as $item) {
                     $lesson = htmlspecialchars($item['lesson_name']);
                     $topic = htmlspecialchars($item['topic']);
                     $time = $item['study_time'];
                     $test = $item['test_count'];
-                    
-                    // 📚 نمایش جزییات هر آیتم با ایموجی و تورفتگی
-                    $text .= "  📚 <b>{$lesson}</b>\n";
-                    $text .= "    ✍️ <i>{$topic}</i>\n";
-                    $text .= "    ⏱️ <code>{$time} دقیقه</code>  |  📝 <code>{$test} تست</code>\n";
+
+                    // ساخت فرمت فشرده و خوانا برای موبایل
+                    $text .= "\n📘 <b>{$lesson}</b>\n";
+                    $text .= "✍️ {$topic}\n";
+                    $text .= "⏱ {$time} دقیقه  |  📝 {$test} تست\n";
                 }
             }
         }
@@ -743,7 +744,7 @@ trait Functions
         $nextWeekOffset = $weekOffset + 1;
 
         $navRow[] = ['text' => '« هفته قبل', 'callback_data' => "admin_view_student_{$studentChatId}_W{$prevWeekOffset}"];
-        
+
         if ($weekOffset < 0) { // دکمه هفته بعد (فقط اگر در گذشته هستیم)
             $navRow[] = ['text' => 'هفته بعد »', 'callback_data' => "admin_view_student_{$studentChatId}_W{$nextWeekOffset}"];
         }
@@ -767,5 +768,4 @@ trait Functions
 
         $this->answerCallbackQuery($callbackQueryId);
     }
-
 }
