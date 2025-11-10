@@ -678,11 +678,11 @@ trait Functions
 
         // --- ساخت متن اصلی ---
         $text = "📊 <b>آمار هفتگی دانش‌آموز:</b> \n";
-        $text .= "👤 **نام:** {$name}\n";
-        $text .= "🎓 **رشته:** {$major} (پایه {$grade})\n\n";
+        $text .= "👤 نام: {$name}\n";
+        $text .= "🎓 رشته: {$major} (پایه {$grade})\n\n";
         $text .= "🗓 <b>بازه زمانی (شنبه تا جمعه):</b>\n";
-        $text .= "<code>{$displayStart}</code>\n";
-        $text .= "<code>{$displayEnd}</code>\n";
+        $text .= "از <code>{$displayStart}</code>\n";
+        $text .= "تا <code>{$displayEnd}</code>\n";
         $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
         
         // --- بخش خلاصه آمار ---
@@ -698,20 +698,28 @@ trait Functions
 
         if (empty($detailedEntries)) {
             $text .= "<i>(موردی برای نمایش در این هفته یافت نشد)</i>\n";
-        } else {
+       } else {
             // گروه‌بندی گزارش‌ها بر اساس تاریخ
             $groupedEntries = [];
             foreach ($detailedEntries as $entry) {
                 $groupedEntries[$entry['report_date']][] = $entry;
             }
 
+            $firstDate = true; // برای کنترل جداکننده
             foreach ($groupedEntries as $date => $entries) {
+                
+                // اضافه کردن جداکننده *بین* روزها
+                if (!$firstDate) {
+                    $text .= "  - - - - - - - - - - - - - - -\n";
+                }
+                $firstDate = false;
+
                 // تبدیل تاریخ به شمسی
                 list($y, $m, $d) = explode('-', $date);
                 $ts = mktime(0, 0, 0, (int)$m, (int)$d, (int)$y);
                 $shamsiDate = jdf::jdate('l, j F', $ts); // e.g., شنبه, 10 آبان
                 
-                $text .= "\n<b>• {$shamsiDate}</b>\n";
+                $text .= "\n🗓 <b>{$shamsiDate}</b>\n";
                 
                 foreach ($entries as $item) {
                     $lesson = htmlspecialchars($item['lesson_name']);
@@ -719,9 +727,10 @@ trait Functions
                     $time = $item['study_time'];
                     $test = $item['test_count'];
                     
-                    // نمایش جزییات هر آیتم
-                    $text .= "  - <b>{$lesson}</b> (<i>{$topic}</i>)\n";
-                    $text .= "    <code>{$time} دقیقه</code> | <code>{$test} تست</code>\n";
+                    // 📚 نمایش جزییات هر آیتم با ایموجی و تورفتگی
+                    $text .= "  📚 <b>{$lesson}</b>\n";
+                    $text .= "    ✍️ <i>{$topic}</i>\n";
+                    $text .= "    ⏱️ <code>{$time} دقیقه</code>  |  📝 <code>{$test} تست</code>\n";
                 }
             }
         }
