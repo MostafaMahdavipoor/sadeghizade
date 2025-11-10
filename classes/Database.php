@@ -404,4 +404,25 @@ class Database
         return $stmt ? $stmt->fetch() : false;
     }
 
+    public function getStudentDetailedReportDataForDateRange(int $chat_id, string $startDate, string $endDate): array
+    {
+        $sql = "
+            SELECT
+                r.report_date,
+                re.lesson_name,
+                re.topic,
+                re.study_time,
+                re.test_count
+            FROM report_entries re
+            JOIN reports r ON re.report_id = r.report_id
+            WHERE r.chat_id = ? 
+              AND r.status = 'submitted' 
+              AND r.report_date BETWEEN ? AND ?
+            ORDER BY r.report_date ASC, re.entry_id ASC
+        "; // مرتب‌سازی بر اساس صعودی تا به ترتیب در گزارش نمایش داده شود
+
+        $params = [$chat_id, $startDate, $endDate];
+        $stmt = $this->query($sql, $params);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
 }

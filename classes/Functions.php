@@ -620,13 +620,11 @@ trait Functions
     }
 
 
-   private function handleAdminViewStudent($callbackQueryId, $callbackData)
+
+    private function handleAdminViewStudent($callbackQueryId, $callbackData)
     {
         // پارس کردن کالبک دیتا
         // فرمت: admin_view_student_{CHAT_ID}_W{WEEK_OFFSET}
-        // مثال: admin_view_student_12345 (offset=0)
-        // مثال: admin_view_student_12345_W-1 (offset=-1)
-        
         preg_match('/^admin_view_student_(\d+)(?:_W(-?\d+))?$/', $callbackData, $matches);
 
         if (empty($matches[1])) {
@@ -635,29 +633,18 @@ trait Functions
         }
 
         $studentChatId = (int)$matches[1];
-        $weekOffset = (int)($matches[2] ?? 0); // 0 برای هفته جاری، -1 برای هفته قبل و ...
+        $weekOffset = (int)($matches[2] ?? 0); // 0 برای هفته جاری
 
         // --- 1. محاسبه بازه زمانی (میلادی) ---
-        // ما هفته را از شنبه (Sat=6) تا جمعه (Fri=5) در نظر می‌گیریم
-        
-        $today = new \DateTime('now'); // زمان سرور (باید با دیتابیس هماهنگ باشد)
-        
-        // پیدا کردن شنبه‌ی این هفته
-        $dayOfWeek = (int)$today->format('w'); // 0=Sun, 1=Mon, ..., 6=Sat
+        $today = new \DateTime('now');
+        $dayOfWeek = (int)$today->format('w'); // 0=Sun, ..., 6=Sat
         $daysToSubtract = ($dayOfWeek == 6) ? 0 : $dayOfWeek + 1;
-        
-        // $startDate برابر با شنبه هفته جاری است
-        $startDate = (new \DateTime('today'))->modify("-$daysToSubtract days");
-
-        // اعمال آفست هفته (اگر 0 نباشد)
+        $startDate = (new \DateTime('today'))->modify("-$daysToSubtract days"); // شنبه
         if ($weekOffset != 0) {
             $startDate->modify("{$weekOffset} week");
         }
+        $endDate = (clone $startDate)->modify("+6 days"); // جمعه
 
-        // $endDate برابر با جمعه همان هفته است
-        $endDate = (clone $startDate)->modify("+6 days");
-
-        // فرمت کردن تاریخ‌ها برای کوئری SQL
         $startDate_SQL = $startDate->format('Y-m-d');
         $endDate_SQL = $endDate->format('Y-m-d');
 
@@ -668,8 +655,11 @@ trait Functions
             return;
         }
 
-        // استفاده از متد جدید برای دریافت آمار هفتگی
+        // آمار کلی هفته
         $stats = $this->db->getStudentStatsForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
+        
+        // **جدید: دریافت جزییات گزارش‌های ثبت شده در این هفته**
+        $detailedEntries = $this->db->getStudentDetailedReportDataForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
 
         // --- 3. فرمت کردن متن خروجی ---
         $name = htmlspecialchars($student['first_name'] . ' ' . $student['last_name']);
@@ -686,6 +676,7 @@ trait Functions
         $minutes = $totalMinutes % 60;
         $studyTimeFormatted = "{$hours} ساعت و {$minutes} دقیقه";
 
+        // --- ساخت متن اصلی ---
         $text = "📊 <b>آمار هفتگی دانش‌آموز:</b> \n";
         $text .= "👤 **نام:** {$name}\n";
         $text .= "🎓 **رشته:** {$major} (پایه {$grade})\n\n";
@@ -693,11 +684,47 @@ trait Functions
         $text .= "<code>{$displayStart}</code>\n";
         $text .= "<code>{$displayEnd}</code>\n";
         $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
-        $text .= "✅ **گزارش‌های ثبت شده:** " . $stats['submitted_reports'] . " روز\n";
-        $text .= "❌ **گزارش‌های ثبت نشده:** " . $stats['missed_reports'] . " روز\n";
-        $text .= "⏱ **مجموع مطالعه:** " . $studyTimeFormatted . "\n";
-        $text .= "📝 **مجموع تست‌ها:** " . number_format($stats['total_test_count']) . " عدد\n";
+        
+        // --- بخش خلاصه آمار ---
+        $text .= "<b>خلاصه آمار هفته:</b>\n";
+        $text .= "✅ گزارش ثبت شده: <b>" . $stats['submitted_reports'] . "</b> روز\n";
+        $text .= "❌ گزارش ثبت نشده: <b>" . $stats['missed_reports'] . "</b> روز\n";
+        $text .= "⏱ مجموع مطالعه: <b>" . $studyTimeFormatted . "</b>\n";
+        $text .= "📝 مجموع تست‌ها: <b>" . number_format($stats['total_test_count']) . "</b> عدد\n";
 
+        // --- بخش جدید: جزییات گزارش‌های ثبت شده ---
+        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
+        $text .= "📜 <b>جزییات گزارش‌های ثبت شده:</b>\n";
+
+        if (empty($detailedEntries)) {
+            $text .= "<i>(موردی برای نمایش در این هفته یافت نشد)</i>\n";
+        } else {
+            // گروه‌بندی گزارش‌ها بر اساس تاریخ
+            $groupedEntries = [];
+            foreach ($detailedEntries as $entry) {
+                $groupedEntries[$entry['report_date']][] = $entry;
+            }
+
+            foreach ($groupedEntries as $date => $entries) {
+                // تبدیل تاریخ به شمسی
+                list($y, $m, $d) = explode('-', $date);
+                $ts = mktime(0, 0, 0, (int)$m, (int)$d, (int)$y);
+                $shamsiDate = jdf::jdate('l, j F', $ts); // e.g., شنبه, 10 آبان
+                
+                $text .= "\n<b>• {$shamsiDate}</b>\n";
+                
+                foreach ($entries as $item) {
+                    $lesson = htmlspecialchars($item['lesson_name']);
+                    $topic = htmlspecialchars($item['topic']);
+                    $time = $item['study_time'];
+                    $test = $item['test_count'];
+                    
+                    // نمایش جزییات هر آیتم
+                    $text .= "  - <b>{$lesson}</b> (<i>{$topic}</i>)\n";
+                    $text .= "    <code>{$time} دقیقه</code> | <code>{$test} تست</code>\n";
+                }
+            }
+        }
 
         // --- 4. ساخت دکمه‌ها ---
         $buttons = [];
@@ -706,26 +733,21 @@ trait Functions
         $prevWeekOffset = $weekOffset - 1;
         $nextWeekOffset = $weekOffset + 1;
 
-        // دکمه هفته قبل
         $navRow[] = ['text' => '« هفته قبل', 'callback_data' => "admin_view_student_{$studentChatId}_W{$prevWeekOffset}"];
         
-        // دکمه هفته بعد (فقط اگر در گذشته هستیم، یعنی آفست منفی است)
-        if ($weekOffset < 0) {
+        if ($weekOffset < 0) { // دکمه هفته بعد (فقط اگر در گذشته هستیم)
             $navRow[] = ['text' => 'هفته بعد »', 'callback_data' => "admin_view_student_{$studentChatId}_W{$nextWeekOffset}"];
         }
-        
         $buttons[] = $navRow;
 
-        // دکمه خروجی اکسل (همان قبلی که کل گزارش‌ها را می‌دهد)
         $buttons[] = [
             ['text' => '📥 خروجی اکسل (کل گزارش‌ها)', 'callback_data' => "admin_export_student_{$studentChatId}"]
         ];
-        
-        // دکمه بازگشت به لیست
         $buttons[] = [
             ['text' => '« بازگشت (لیست)', 'callback_data' => 'admin_students']
         ];
 
+        // --- 5. ارسال پیام ---
         $this->sendRequest("editMessageText", [
             "chat_id" => $this->chatId,
             "message_id" => $this->messageId,
@@ -737,33 +759,4 @@ trait Functions
         $this->answerCallbackQuery($callbackQueryId);
     }
 
-    public function showCounselorContact(int $messageId): void
-    {
-        $text = "👨‍🏫 <b>ارتباط با آقای علیار صادقی‌زاده</b>\n\n" .
-            "<blockquote>" .
-            "«مسیر موفقیت در کنکور، نیازمند یک راهنمای باتجربه و دلسوز است.»" .
-            "</blockquote>\n" .
-            "🎯 <b>برنامه شخصی‌سازی شده</b> و دقیق\n" .
-            "🧠 <b>تکنیک‌های مدیریت زمان و استرس</b>\n" .
-            "💪 <b>پشتیبانی مستمر</b> و پیگیری روزانه\n\n" ;
-
-        $buttons = [
-            [
-                ['text' => '📩 ارتباط مستقیم با مشاور', 'url' => 'https://t.me/Aliyar_sadeqizadeh']
-            ],
-            [
-                ['text' => '« بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']
-            ]
-        ];
-
-        $this->sendRequest("editMessageText", [
-            "chat_id"      => $this->chatId,
-            "message_id"   => $messageId,
-            "text"         => $text,
-            "parse_mode"   => "HTML",
-            "reply_markup" => json_encode([
-                "inline_keyboard" => $buttons
-            ]),
-        ]);
-    }
 }
