@@ -15,8 +15,9 @@ trait Functions
 
 
         $buttons = [
-            [
-                ['text' => '✍️ ثبت گزارش روزانه', 'callback_data' => 'start_daily_report']
+           [
+                ['text' => '✍️ ثبت گزارش روزانه', 'callback_data' => 'start_daily_report'],
+                ['text' => '📊 گزارشات من', 'callback_data' => 'my_reports'] // <-- دکمه جدید
             ],
             [
                 ['text' => '📞 ارتباط با مشاور', 'callback_data' => 'contact_counselor']
@@ -660,6 +661,7 @@ trait Functions
 
         // **جدید: دریافت جزییات گزارش‌های ثبت شده در این هفته**
         $detailedEntries = $this->db->getStudentDetailedReportDataForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
+        $subjectSummary = $this->db->getStudentSubjectSummaryForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
 
         // --- 3. فرمت کردن متن خروجی ---
         $name = htmlspecialchars($student['first_name'] . ' ' . $student['last_name']);
@@ -674,7 +676,15 @@ trait Functions
         $totalMinutes = (int)$stats['total_study_time'];
         $hours = floor($totalMinutes / 60);
         $minutes = $totalMinutes % 60;
-        $studyTimeFormatted = "{$hours} ساعت و {$minutes} دقیقه";
+
+        $studyTimeFormatted = "";
+        if ($hours > 0) {
+            $studyTimeFormatted .= "{$hours} ساعت";
+            if ($minutes > 0) $studyTimeFormatted .= " و ";
+        }
+        if ($minutes > 0 || $hours == 0) {
+            $studyTimeFormatted .= "{$minutes} دقیقه";
+        }
 
         // --- ساخت متن اصلی ---
         $text = "📊 <b>آمار هفتگی دانش‌آموز:</b> \n";
@@ -683,17 +693,7 @@ trait Functions
         $text .= "🗓 <b>بازه زمانی (شنبه تا جمعه):</b>\n";
         $text .= "از <code>{$displayStart}</code>\n";
         $text .= "تا <code>{$displayEnd}</code>\n";
-        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
-
-        // --- بخش خلاصه آمار ---
-        $text .= "<b>خلاصه آمار هفته:</b>\n";
-        $text .= "✅ گزارش ثبت شده: <b>" . $stats['submitted_reports'] . "</b> روز\n";
-        $text .= "❌ گزارش ثبت نشده: <b>" . $stats['missed_reports'] . "</b> روز\n";
-        $text .= "⏱ مجموع مطالعه: <b>" . $studyTimeFormatted . "</b>\n";
-        $text .= "📝 مجموع تست‌ها: <b>" . number_format($stats['total_test_count']) . "</b> عدد\n";
-
-        // --- بخش جدید: جزییات گزارش‌های ثبت شده ---
-        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\n";
+        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\u{200F}\n";
         $text .= "📜 <b>جزییات گزارش‌های ثبت شده:</b>\n";
 
         if (empty($detailedEntries)) {
@@ -710,7 +710,7 @@ trait Functions
 
                 // جداکننده بین روزها
                 if (!$firstDate) {
-                    $text .= "\n───────────────\n";
+                    $text .= "\n───────────────\u{200F}\n";
                 }
                 $firstDate = false;
 
@@ -735,6 +735,44 @@ trait Functions
                 }
             }
         }
+
+        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\u{200F}\n";
+        $text .= "<b>خلاصه آمار هفته:</b>\n";
+        $text .= "✅ گزارش ثبت شده: <b>" . $stats['submitted_reports'] . "</b> روز\n";
+        $text .= "❌ گزارش ثبت نشده: <b>" . $stats['missed_reports'] . "</b> روز\n";
+        $text .= "⏱ مجموع مطالعه: <b>" . $studyTimeFormatted . "</b>\n";
+        $text .= "📝 مجموع تست‌ها: <b>" . number_format($stats['total_test_count']) . "</b> عدد\n";
+
+        // --- بخش جدید: تفکیک دروس ---
+        if (!empty($subjectSummary)) {
+            $text .= "\n───────────────\n";
+            $text .= "<b>📊 تفکیک دروس (جمع هفته):</b>\n";
+
+            foreach ($subjectSummary as $subject) {
+                $lesson = htmlspecialchars($subject['lesson_name']);
+
+                // فرمت کردن زمان مطالعه مخصوص هر درس
+                $lessonMinutes = (int)$subject['total_time'];
+                $lessonHours = floor($lessonMinutes / 60);
+                $lessonMins = $lessonMinutes % 60;
+
+                $lessonTimeFormatted = "";
+                if ($lessonHours > 0) {
+                    $lessonTimeFormatted .= "{$lessonHours} ساعت";
+                    if ($lessonMins > 0) $lessonTimeFormatted .= " و ";
+                }
+                if ($lessonMins > 0 || $lessonHours == 0) {
+                    $lessonTimeFormatted .= "{$lessonMins} دقیقه";
+                }
+
+                $lessonTests = number_format($subject['total_tests']);
+
+                // فرمت فشرده و واضح برای موبایل
+                $text .= "\n📘 <b>{$lesson}</b>\n";
+                $text .= "⏱ {$lessonTimeFormatted}  |  📝 {$lessonTests} تست\n";
+            }
+        }
+
 
         // --- 4. ساخت دکمه‌ها ---
         $buttons = [];
@@ -768,4 +806,156 @@ trait Functions
 
         $this->answerCallbackQuery($callbackQueryId);
     }
+
+   
+    private function handleStudentReportView($callbackQueryId, $callbackData)
+    {
+        // پارس کردن کالبک دیتا
+        // فرمت: my_reports (offset=0) or my_reports_W{WEEK_OFFSET}
+        preg_match('/^my_reports(?:_W(-?\d+))?$/', $callbackData, $matches);
+
+        $weekOffset = (int)($matches[1] ?? 0); // 0 برای هفته جاری
+        
+        // دانش آموز همیشه چت‌آیدی خودش است
+        $studentChatId = $this->chatId; 
+
+        // --- 1. محاسبه بازه زمانی (میلادی) ---
+        $today = new \DateTime('now');
+        $dayOfWeek = (int)$today->format('w'); // 0=Sun, ..., 6=Sat
+        $daysToSubtract = ($dayOfWeek == 6) ? 0 : $dayOfWeek + 1;
+        $startDate = (new \DateTime('today'))->modify("-$daysToSubtract days"); // شنبه
+        if ($weekOffset != 0) {
+            $startDate->modify("{$weekOffset} week");
+        }
+        $endDate = (clone $startDate)->modify("+6 days"); // جمعه
+
+        $startDate_SQL = $startDate->format('Y-m-d');
+        $endDate_SQL = $endDate->format('Y-m-d');
+
+        // --- 2. دریافت اطلاعات ---
+        // از همان متدهای دیتابیس که برای ادمین ساختیم استفاده می‌کنیم
+        $stats = $this->db->getStudentStatsForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
+        $detailedEntries = $this->db->getStudentDetailedReportDataForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
+        $subjectSummary = $this->db->getStudentSubjectSummaryForDateRange($studentChatId, $startDate_SQL, $endDate_SQL);
+
+        // --- 3. فرمت کردن متن خروجی ---
+        $displayStart = jdf::jdate('l, j F Y', $startDate->getTimestamp());
+        $displayEnd = jdf::jdate('l, j F Y', $endDate->getTimestamp());
+
+        // فرمت کردن زمان مطالعه (کد بهبود یافته)
+        $totalMinutes = (int)$stats['total_study_time'];
+        $hours = floor($totalMinutes / 60);
+        $minutes = $totalMinutes % 60;
+        
+        $studyTimeFormatted = "";
+        if ($hours > 0) {
+            $studyTimeFormatted .= "{$hours} ساعت";
+            if ($minutes > 0) $studyTimeFormatted .= " و ";
+        }
+        if ($minutes > 0 || $hours == 0) {
+            $studyTimeFormatted .= "{$minutes} دقیقه";
+        }
+
+        // --- ساخت متن اصلی ---
+        $text = "📊 <b>گزارش هفتگی شما</b> \n\n"; // عنوان ساده‌تر شد
+        $text .= "🗓 <b>بازه زمانی (شنبه تا جمعه):</b>\n";
+        $text .= "از <code>{$displayStart}</code>\n";
+        $text .= "تا <code>{$displayEnd}</code>\n";
+        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\u{200F}\n";
+        $text .= "📜 <b>جزییات گزارش‌های ثبت شده:</b>\n";
+
+        if (empty($detailedEntries)) {
+            $text .= "<i>(موردی برای نمایش در این هفته یافت نشد)</i>\n";
+        } else {
+            // (کپی همان منطق نمایش جزییات از پنل ادمین)
+            $groupedEntries = [];
+            foreach ($detailedEntries as $entry) {
+                $groupedEntries[$entry['report_date']][] = $entry;
+            }
+
+            $firstDate = true;
+            foreach ($groupedEntries as $date => $entries) {
+                if (!$firstDate) $text .= "\n───────────────\u{200F}\n";
+                $firstDate = false;
+
+                list($y, $m, $d) = explode('-', $date);
+                $ts = mktime(0, 0, 0, (int)$m, (int)$d, (int)$y);
+                $shamsiDate = jdf::jdate('l, j F', $ts); 
+                $text .= "\n🗓 <b>{$shamsiDate}</b>\n";
+
+                foreach ($entries as $item) {
+                    $lesson = htmlspecialchars($item['lesson_name']);
+                    $topic = htmlspecialchars($item['topic']);
+                    $time = $item['study_time'];
+                    $test = $item['test_count'];
+
+                    $text .= "\n📘 <b>{$lesson}</b>\n";
+                    $text .= "✍️ {$topic}\n";
+                    $text .= "⏱ {$time} دقیقه  |  📝 {$test} تست\n";
+                }
+            }
+        }
+
+        $text .= "〰️〰️〰️〰️〰️〰️〰️〰️〰️\u{200F}\n";
+        $text .= "<b>خلاصه آمار هفته:</b>\n";
+        $text .= "✅ گزارش ثبت شده: <b>" . $stats['submitted_reports'] . "</b> روز\n";
+        $text .= "❌ گزارش ثبت نشده: <b>" . $stats['missed_reports'] . "</b> روز\n";
+        $text .= "⏱ مجموع مطالعه: <b>" . $studyTimeFormatted . "</b>\n";
+        $text .= "📝 مجموع تست‌ها: <b>" . number_format($stats['total_test_count']) . "</b> عدد\n";
+
+        // --- بخش تفکیک دروس ---
+        if (!empty($subjectSummary)) {
+            $text .= "\n───────────────\n";
+            $text .= "<b>📊 تفکیک دروس (جمع هفته):</b>\n";
+
+            foreach ($subjectSummary as $subject) {
+                $lesson = htmlspecialchars($subject['lesson_name']);
+                $lessonMinutes = (int)$subject['total_time'];
+                $lessonHours = floor($lessonMinutes / 60);
+                $lessonMins = $lessonMinutes % 60;
+
+                $lessonTimeFormatted = "";
+                if ($lessonHours > 0) {
+                    $lessonTimeFormatted .= "{$lessonHours} ساعت";
+                    if ($lessonMins > 0) $lessonTimeFormatted .= " و ";
+                }
+                if ($lessonMins > 0 || $lessonHours == 0) {
+                    $lessonTimeFormatted .= "{$lessonMins} دقیقه";
+                }
+                $lessonTests = number_format($subject['total_tests']);
+                $text .= "\n📘 <b>{$lesson}</b>\n";
+                $text .= "⏱ {$lessonTimeFormatted}  |  📝 {$lessonTests} تست\n";
+            }
+        }
+
+
+        // --- 4. ساخت دکمه‌ها ---
+        $buttons = [];
+        $navRow = [];
+
+        $prevWeekOffset = $weekOffset - 1;
+        $nextWeekOffset = $weekOffset + 1;
+
+        // کالبک‌ها به 'my_reports_W' اشاره می‌کنند
+        $navRow[] = ['text' => '« هفته قبل', 'callback_data' => "my_reports_W{$prevWeekOffset}"];
+
+        if ($weekOffset < 0) { // فقط اگر در گذشته هستیم
+            $navRow[] = ['text' => 'هفته بعد »', 'callback_data' => "my_reports_W{$nextWeekOffset}"];
+        }
+        $buttons[] = $navRow;
+        $buttons[] = [
+            ['text' => '« بازگشت (منوی اصلی)', 'callback_data' => 'go_to_main_menu']
+        ];
+
+        $this->sendRequest("editMessageText", [
+            "chat_id" => $this->chatId,
+            "message_id" => $this->messageId,
+            "text" => $text,
+            "parse_mode" => "HTML",
+            "reply_markup" => json_encode(['inline_keyboard' => $buttons])
+        ]);
+
+        $this->answerCallbackQuery($callbackQueryId);
+    }
+
 }

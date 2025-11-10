@@ -425,4 +425,25 @@ class Database
         $stmt = $this->query($sql, $params);
         return $stmt ? $stmt->fetchAll() : [];
     }
+
+    public function getStudentSubjectSummaryForDateRange(int $chat_id, string $startDate, string $endDate): array
+    {
+        $sql = "
+            SELECT
+                re.lesson_name,
+                SUM(re.study_time) as total_time,
+                SUM(re.test_count) as total_tests
+            FROM report_entries re
+            JOIN reports r ON re.report_id = r.report_id
+            WHERE r.chat_id = ? 
+              AND r.status = 'submitted' 
+              AND r.report_date BETWEEN ? AND ?
+            GROUP BY re.lesson_name
+            ORDER BY total_time DESC
+        ";
+
+        $params = [$chat_id, $startDate, $endDate];
+        $stmt = $this->query($sql, $params);
+        return $stmt ? $stmt->fetchAll() : [];
+    }
 }

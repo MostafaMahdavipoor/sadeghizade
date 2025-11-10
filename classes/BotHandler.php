@@ -216,6 +216,10 @@ class BotHandler
             $this->handleAdminViewStudent($callbackQueryId, $callbackData);
             return;
         }
+        if ($callbackData === 'my_reports' || str_starts_with($callbackData, 'my_reports_W')) {
+            $this->handleStudentReportView($callbackQueryId, $callbackData); // تابع جدید را فرا می‌خواند
+            return;
+        }
         if ($callbackData === 'admin_students' || str_starts_with($callbackData, 'admin_students_')) {
             $this->handleAdminStudentsList($callbackQueryId, $callbackData);
             return;
