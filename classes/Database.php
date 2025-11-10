@@ -368,4 +368,40 @@ class Database
 
         return (bool)$stmt;
     }
+
+    public function getStudentStatsForDateRange(int $chat_id, string $startDate, string $endDate): array|false
+    {
+        $sql = "
+            SELECT 
+                (SELECT COUNT(*) FROM reports r 
+                 WHERE r.chat_id = ? AND r.status = 'submitted' AND r.report_date BETWEEN ? AND ?) 
+                 as submitted_reports,
+                 
+                (SELECT COUNT(*) FROM reports r 
+                 WHERE r.chat_id = ? AND (r.status = 'pending' OR r.status = 'reason_provided') AND r.report_date BETWEEN ? AND ?) 
+                 as missed_reports,
+                 
+                IFNULL((SELECT SUM(re.study_time) FROM report_entries re 
+                        JOIN reports r ON re.report_id = r.report_id 
+                        WHERE r.chat_id = ? AND r.status = 'submitted' AND r.report_date BETWEEN ? AND ?), 0) 
+                as total_study_time,
+                
+                IFNULL((SELECT SUM(re.test_count) FROM report_entries re 
+                        JOIN reports r ON re.report_id = r.report_id 
+                        WHERE r.chat_id = ? AND r.status = 'submitted' AND r.report_date BETWEEN ? AND ?), 0) 
+                as total_test_count
+        ";
+
+        // پارامترها باید برای هر زیر-کوئری تکرار شوند
+        $params = [
+            $chat_id, $startDate, $endDate, // برای submitted_reports
+            $chat_id, $startDate, $endDate, // برای missed_reports
+            $chat_id, $startDate, $endDate, // برای total_study_time
+            $chat_id, $startDate, $endDate  // برای total_test_count
+        ];
+
+        $stmt = $this->query($sql, $params);
+        return $stmt ? $stmt->fetch() : false;
+    }
+
 }
