@@ -211,7 +211,7 @@ class BotHandler
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
-       
+
         if (str_starts_with($callbackData, 'admin_view_student_')) {
             $this->handleAdminViewStudent($callbackQueryId, $callbackData);
             return;
@@ -440,11 +440,41 @@ class BotHandler
         $this->answerCallbackQuery($callbackQueryId);
     }
 
+
+    public function showCounselorContact(int $messageId): void
+    {
+        $text = "👨‍🏫 <b>ارتباط با آقای علیار صادقی‌زاده</b>\n\n" .
+            "<blockquote>" .
+            "«مسیر موفقیت در کنکور، نیازمند یک راهنمای باتجربه و دلسوز است.»" .
+            "</blockquote>\n" .
+            "🎯 <b>برنامه شخصی‌سازی شده</b> و دقیق\n" .
+            "🧠 <b>تکنیک‌های مدیریت زمان و استرس</b>\n" .
+            "💪 <b>پشتیبانی مستمر</b> و پیگیری روزانه\n\n";
+
+        $buttons = [
+            [
+                ['text' => '📩 ارتباط مستقیم با مشاور', 'url' => 'https://t.me/Aliyar_sadeqizadeh']
+            ],
+            [
+                ['text' => '« بازگشت به منوی اصلی', 'callback_data' => 'go_to_main_menu']
+            ]
+        ];
+
+        $this->sendRequest("editMessageText", [
+            "chat_id"      => $this->chatId,
+            "message_id"   => $messageId,
+            "text"         => $text,
+            "parse_mode"   => "HTML",
+            "reply_markup" => json_encode([
+                "inline_keyboard" => $buttons
+            ]),
+        ]);
+    }
     /**
      * کالبک دکمه 'admin_export_student_' را مدیریت می‌کند
      * یک فایل اکسل (با تاریخ شمسی) از گزارش‌های دانش‌آموز ساخته و ارسال می‌کند
      */
-   public function handleAdminExportStudent($callbackQueryId, $callbackData)
+    public function handleAdminExportStudent($callbackQueryId, $callbackData)
     {
         $studentChatId = (int)substr($callbackData, strlen('admin_export_student_'));
         if ($studentChatId <= 0) {
