@@ -178,7 +178,7 @@ class Database
         // که زمان گزارششان <= زمان فعلی است
         // و (LEFT JOIN) هیچ گزارشی (reports r) برای تاریخ امروز ندارند.
         $sql = "
-            SELECT s.chat_id
+            SELECT s.*
             FROM students s
             LEFT JOIN reports r ON s.chat_id = r.chat_id AND r.report_date = ?
             WHERE s.status = 'active'

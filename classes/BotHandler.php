@@ -299,14 +299,30 @@ class BotHandler
         if ($callbackData === 'no_study_today') {
             $report = $this->db->getTodaysReport($this->chatId);
             if (!$report) {
-                $this->answerCallbackQuery($callbackQueryId, "خطا در یافتن گزارش امروز.", true);
+                $this->answerCallbackQuery($callbackQueryId, "❌ خطا در یافتن گزارش امروز.", true);
                 return;
             }
+
+            // ذخیره وضعیت کاربر برای دریافت دلیل عدم مطالعه
             $this->fileHandler->saveState($this->chatId, 'awaiting_no_study_reason');
-            $this->sendRequest("sendMessage", ["chat_id" => $this->chatId, "text" => "لطفا دلیل درس نخواندن خود را (متن یا عکس) ارسال کنید:"]);
+
+            // پیام همراه با دکمه‌ها
+            $text = "😅 باشه!\n\nلطفاً دلیل درس نخواندنت رو بنویس یا یه عکس بفرست تا ثبت کنم 📋\n";
+            $buttons = [
+                [['text' => '↩️ اشتباه زدم، درس خوندم 😅', 'callback_data' => 'start_daily_report']],
+                [['text' => '🏠 منو اصلی', 'callback_data' => 'go_to_main_menu']]
+            ];
+
+            $this->sendRequest("sendMessage", [
+                "chat_id" => $this->chatId,
+                "text" => $text,
+                "reply_markup" => json_encode(["inline_keyboard" => $buttons])
+            ]);
+
             $this->answerCallbackQuery($callbackQueryId);
             return;
         }
+
 
         if ($callbackData === 'no_test') {
             if ($state !== 'awaiting_test_count') {
